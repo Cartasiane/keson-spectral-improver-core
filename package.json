@@ -1,0 +1,11 @@
+{
+  "name": "keson-spectral-improver-core",
+  "version": "0.1.0",
+  "description": "Core downloader and quality analysis logic for Keson spectral improver",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "license": "ISC",
+  "dependencies": {
+    "yt-dlp-exec": "^1.0.2"
+  }
+}

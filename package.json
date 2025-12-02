@@ -5,7 +5,17 @@
   "main": "src/index.js",
   "type": "commonjs",
   "license": "ISC",
+  "files": [
+    "src",
+    "bin",
+    "vendor",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
+    "dotenv": "^17.2.3",
     "yt-dlp-exec": "^1.0.2"
   }
 }

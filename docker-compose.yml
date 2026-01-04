@@ -1,0 +1,69 @@
+services:
+  # IDHS - Music link converter (Spotify/Tidal/YouTube → SoundCloud)
+  idhs:
+    image: sjdonado/idonthavespotify:latest
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - APP_URL=${IDHS_APP_URL:-http://localhost:3000}
+      - DATABASE_PATH=${IDHS_DATABASE_PATH:-/data/idhs.db}
+      # Spotify
+      - SPOTIFY_API_URL=https://api.spotify.com/v1/search
+      - SPOTIFY_AUTH_URL=https://accounts.spotify.com/api/token
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+      # Tidal
+      - TIDAL_BASE_URL=https://tidal.com/browse
+      - TIDAL_API_URL=https://openapi.tidal.com/v2/searchResults
+      - TIDAL_AUTH_URL=https://auth.tidal.com/v1/oauth2/token
+      - TIDAL_CLIENT_ID=${TIDAL_CLIENT_ID}
+      - TIDAL_CLIENT_SECRET=${TIDAL_CLIENT_SECRET}
+      # YouTube
+      - YOUTUBE_API_URL=https://content-youtube.googleapis.com/youtube/v3
+      - YOUTUBE_MUSIC_BASE_URL=https://music.youtube.com
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+      # Other platforms (no auth needed)
+      - DEEZER_API_URL=https://api.deezer.com/search
+      - APPLE_MUSIC_API_URL=https://music.apple.com/ca
+      - SOUNDCLOUD_BASE_URL=https://soundcloud.com
+      - BANDCAMP_API_URL=https://bandcamp.com/api/bcsearch_public_api/1/autocomplete_elastic
+      - BANDCAMP_BASE_URL=https://bandcamp.com/
+    ports:
+      - "${IDHS_PORT:-3000}:3000"
+    volumes:
+      - idhs-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Keson Core - Audio download and quality analysis API
+  keson-core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - PORT=3001
+      - IDHS_API_BASE_URL=http://idhs:3000
+      - IDHS_REQUEST_TIMEOUT_MS=${IDHS_REQUEST_TIMEOUT_MS:-15000}
+      - SOUNDCLOUD_OAUTH_TOKEN=${SOUNDCLOUD_OAUTH_TOKEN}
+      - ENABLE_QUALITY_ANALYSIS=${ENABLE_QUALITY_ANALYSIS:-true}
+      - QUALITY_ANALYSIS_DEBUG=${QUALITY_ANALYSIS_DEBUG:-false}
+    ports:
+      - "${KESON_PORT:-3001}:3001"
+    volumes:
+      - keson-downloads:/app/downloads
+    depends_on:
+      idhs:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  idhs-data:
+  keson-downloads:

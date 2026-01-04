@@ -1,6 +1,6 @@
 'use strict'
 
-const { downloadTrack, cleanupTempDir, fetchPlaylistTracks } = require('./downloader')
+const { downloadTrack, cleanupTempDir, fetchPlaylistTracks, isSoundCloudUrl, isTidalUrl } = require('./downloader')
 const { analyzeTrackQuality, qualityDebug } = require('./quality')
 const { buildCaption, appendQuality } = require('./captions')
 const { createTaskQueue } = require('./queue')
@@ -14,6 +14,8 @@ module.exports = {
   downloadTrack,
   cleanupTempDir,
   fetchPlaylistTracks,
+  isSoundCloudUrl,
+  isTidalUrl,
   // quality
   analyzeTrackQuality,
   qualityDebug,

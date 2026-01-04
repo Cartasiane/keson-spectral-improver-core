@@ -50,6 +50,9 @@ services:
       - SOUNDCLOUD_OAUTH_TOKEN=${SOUNDCLOUD_OAUTH_TOKEN}
       - ENABLE_QUALITY_ANALYSIS=${ENABLE_QUALITY_ANALYSIS:-true}
       - QUALITY_ANALYSIS_DEBUG=${QUALITY_ANALYSIS_DEBUG:-false}
+      # For Portainer/Env usage (paste file content here):
+      # - TIDAL_TOKEN_JSON={"accessToken": "..."}
+      # - TIDAL_SETTINGS_JSON={"quality_audio": "LOSSLESS", ...}
     ports:
       - "${KESON_PORT:-3001}:3001"
     volumes:

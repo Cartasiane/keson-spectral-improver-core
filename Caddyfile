@@ -1,0 +1,11 @@
+:80 {
+    # Protect with Basic Auth
+    # Retrieve credentials from environment variables (set in docker-compose.yml)
+    # The password must be a hashed value (use 'caddy hash-password' to generate)
+    basicauth / {
+        {$BASIC_AUTH_USER} {$BASIC_AUTH_PASSWORD_HASH}
+    }
+
+    # Proxy to Keson Core
+    reverse_proxy keson-core:3001
+}

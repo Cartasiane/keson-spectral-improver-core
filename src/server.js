@@ -59,7 +59,7 @@ app.post('/download', async (req, res) => {
       success: true,
       metadata: result.metadata,
       filename,
-      downloadUrl: `http://localhost:${PORT}${downloadUrl}`
+      downloadUrl // Return relative path e.g. /files/song.mp3
     })
   } catch (error) {
     console.error('[download] Failed:', error)
@@ -185,7 +185,7 @@ app.post('/download-any', async (req, res) => {
       metadata: result.metadata,
       quality,
       filename,
-      downloadUrl: `http://localhost:${PORT}${downloadUrl}`
+      downloadUrl // Return relative path
     })
   } catch (error) {
     console.error('[download-any] Failed:', error)

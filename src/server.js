@@ -24,8 +24,31 @@ fs.mkdirSync(DOWNLOADS_DIR, { recursive: true })
 
 app.use(express.json())
 
-// Serve downloaded files
-app.use('/files', express.static(DOWNLOADS_DIR))
+// Serve downloaded files (and delete after sending)
+app.use('/files', (req, res, next) => {
+  const filePath = path.join(DOWNLOADS_DIR, req.path)
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' })
+  }
+  
+  // Send file, then delete it after transfer completes
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      console.error(`[files] Error sending file: ${err.message}`)
+    } else {
+      // Delete file after successful transfer
+      fs.unlink(filePath, (unlinkErr) => {
+        if (unlinkErr) {
+          console.error(`[files] Failed to delete after serving: ${filePath}`, unlinkErr.message)
+        } else {
+          console.log(`[files] Cleaned up: ${filePath}`)
+        }
+      })
+    }
+  })
+})
 
 // ---- Health Check ----
 app.get('/health', (req, res) => {

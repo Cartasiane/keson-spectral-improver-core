@@ -1,13 +1,20 @@
 'use strict'
 
 const path = require('node:path')
-require('dotenv').config()
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') })
 
 // ---- Download Tools ----
 const YT_DLP_BINARY_PATH = process.env.YT_DLP_BINARY_PATH || 'yt-dlp'
 const YT_DLP_COOKIES_PATH = process.env.YT_DLP_COOKIES_PATH
 const YT_DLP_SKIP_CERT_CHECK = process.env.YT_DLP_SKIP_CERT_CHECK === 'true'
 const TIDAL_DL_NG_PATH = process.env.TIDAL_DL_NG_PATH || 'tidal-dl-ng'
+const TIDAL_CLIENT_ID = process.env.TIDAL_CLIENT_ID
+if (TIDAL_CLIENT_ID) {
+    console.log(`[config] Loaded TIDAL_CLIENT_ID: ${TIDAL_CLIENT_ID.substring(0, 4)}...`)
+} else {
+    console.log('[config] TIDAL_CLIENT_ID is NOT set')
+}
+const TIDAL_CLIENT_SECRET = process.env.TIDAL_CLIENT_SECRET
 
 // ---- IDHS (Link Resolution) ----
 const IDHS_API_BASE_URL = process.env.IDHS_API_BASE_URL || 'http://localhost:3000'
@@ -50,6 +57,8 @@ module.exports = {
   YT_DLP_COOKIES_PATH,
   YT_DLP_SKIP_CERT_CHECK,
   TIDAL_DL_NG_PATH,
+  TIDAL_CLIENT_ID,
+  TIDAL_CLIENT_SECRET,
   // IDHS
   IDHS_API_BASE_URL,
   IDHS_REQUEST_TIMEOUT_MS,

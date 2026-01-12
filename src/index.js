@@ -12,10 +12,12 @@ const config = require('./config')
 module.exports = {
   // downloads
   downloadTrack,
+  smartDownload: require('./downloader').smartDownload,
   cleanupTempDir,
   fetchPlaylistTracks,
   isSoundCloudUrl,
   isTidalUrl,
+  searchTidalTrack: require('./tidal').searchTrack,
   // quality
   analyzeTrackQuality,
   qualityDebug,

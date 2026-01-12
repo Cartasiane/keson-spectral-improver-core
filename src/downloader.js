@@ -6,6 +6,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 const config = require('./config')
+const { searchTrack } = require('./tidal')
 
 /**
  * Download a track from a URL.
@@ -13,6 +14,35 @@ const config = require('./config')
  * - Tidal URLs: use tidal-dl-ng
  * - Other URLs: try yt-dlp first, then tidal-dl-ng
  */
+/**
+ * Smart download: Try Tidal first, then fallback to provided URL or SoundCloud search
+ * @param {string} query - Filename stem or query
+ * @param {string} fallbackUrl - Optional fallback URL (e.g. SoundCloud search)
+ * @param {object} options
+ */
+async function smartDownload(query, fallbackUrl, options = {}) {
+  // 1. Try Tidal Search
+  if (config.TIDAL_CLIENT_ID && config.TIDAL_CLIENT_SECRET) {
+    console.log(`[smart] Searching Tidal for: "${query}"`)
+    const tidalUrl = await searchTrack(query)
+    if (tidalUrl) {
+      console.log(`[smart] Found on Tidal: ${tidalUrl}`)
+      try {
+        return await downloadTrack(tidalUrl, options)
+      } catch (err) {
+        console.warn(`[smart] Tidal download failed, falling back... (${err.message})`)
+      }
+    } else {
+      console.log(`[smart] Not found on Tidal.`)
+    }
+  }
+
+  // 2. Fallback
+  const targetUrl = fallbackUrl || `https://soundcloud.com/search?q=${encodeURIComponent(query)}`
+  console.log(`[smart] Falling back to: ${targetUrl}`)
+  return downloadTrack(targetUrl, options)
+}
+
 async function downloadTrack(url, options = {}) {
   const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'keson-dl-'))
 
@@ -60,6 +90,9 @@ async function downloadWithYtDlp(url, outputDir, options = {}) {
     '-o', path.join(outputDir, '%(title)s.%(ext)s'),
     '--write-info-json',
     '--no-warnings',
+    '--embed-thumbnail',    // Embed cover art
+    '--embed-metadata',     // Embed metadata (title, artist, etc.)
+    '--convert-thumbnails', 'jpg',  // Convert thumbnail to jpg for compatibility
   ]
 
   // Add cookies if available (for premium SoundCloud)
@@ -95,6 +128,7 @@ async function downloadWithYtDlp(url, outputDir, options = {}) {
   // Parse metadata from info.json if available
   let metadata = {}
   if (infoFile) {
+    console.log('[yt-dlp] Found info.json:', infoFile);
     try {
       const infoJson = await fsp.readFile(path.join(outputDir, infoFile), 'utf8')
       const info = JSON.parse(infoJson)
@@ -104,8 +138,11 @@ async function downloadWithYtDlp(url, outputDir, options = {}) {
         album: info.album,
         duration: info.duration,
         bitrate: info.abr || info.tbr,
+        thumbnail: info.thumbnail,
+        thumbnail: info.thumbnail,
         source: 'soundcloud'
       }
+      console.log('[yt-dlp] Extracted metadata:', JSON.stringify(metadata, null, 2));
     } catch (e) {
       console.warn('[yt-dlp] Failed to parse info.json:', e.message)
     }
@@ -121,20 +158,57 @@ async function downloadWithYtDlp(url, outputDir, options = {}) {
  * Download using tidal-dl-ng (for Tidal URLs)
  */
 async function downloadWithTidalDlNg(url, outputDir, options = {}) {
-  const tidalPath = config.TIDAL_DL_NG_PATH || 'tidal-dl-ng'
-
+  // Use local debug version
+  const projectRoot = '/Users/tak/Documents/dev/Keson-spectral-improver'
+  const tidalPath = path.join(projectRoot, 'venv/bin/python')
+  
   const args = [
+    '-m',
+    'tidal_dl_ng.cli',
     'dl',
-    '--output-dir', outputDir,
     url
   ]
 
-  console.log(`[tidal-dl-ng] Downloading: ${url}`)
+  console.log(`[tidal-dl-ng] Downloading: ${url} using local source`)
 
-  const { stdout, stderr } = await spawnCollect(tidalPath, args, { cwd: outputDir })
+  // Run from project root to allow module import
+  const homeDir = require('os').homedir()
+  const tidalDownloadPath = path.join(homeDir, 'download', 'Tracks') // tidal-dl-ng default: ~/download/Tracks
 
-  // Find the downloaded file (tidal-dl-ng creates subdirectories)
-  const filePath = await findNewestAudioFile(outputDir)
+  // Record start time to filter out old files
+  const downloadStartTime = Date.now()
+  console.log(`[tidal-dl-ng] Start time: ${downloadStartTime}, searching in: ${tidalDownloadPath}`)
+
+  let stdout = ''
+  let stderr = ''
+
+  try {
+      const result = await spawnCollect(tidalPath, args, { cwd: projectRoot })
+      stdout = result.stdout
+      stderr = result.stderr
+      
+      console.log(`[tidal-dl-ng] stdout: ${stdout}`)
+      console.log(`[tidal-dl-ng] stderr: ${stderr}`)
+  } catch (err) {
+      console.error(`[tidal-dl-ng] Execution failed: ${err.message}`)
+      console.error(`[tidal-dl-ng] stderr: ${err.stderr}`)
+      throw err;
+  }
+
+  let filePath = null
+  
+  // Check if download was skipped (file already exists)
+  // Format: "Download skipped, since file exists: '/path/to/file.flac'"
+  const skipMatch = stdout.match(/Download skipped, since file exists:\s*'([^']+)'/)
+  if (skipMatch) {
+    // Remove newlines that may be inserted due to terminal wrapping
+    filePath = skipMatch[1].replace(/\n/g, '')
+    console.log(`[tidal-dl-ng] File already exists: ${filePath}`)
+  } else {
+    // Find the downloaded file in tidal-dl-ng's download directory (only files created after start)
+    filePath = await findNewestAudioFile(tidalDownloadPath, downloadStartTime)
+    console.log(`[tidal-dl-ng] Found new file: ${filePath}`)
+  }
 
   if (!filePath) {
     throw new Error(`tidal-dl-ng did not produce an audio file. stderr: ${stderr}`)
@@ -155,28 +229,35 @@ async function downloadWithTidalDlNg(url, outputDir, options = {}) {
 
 /**
  * Recursively find the newest audio file in a directory
+ * @param {string} dir - Directory to search
+ * @param {number} minTime - Optional minimum mtime in ms (files older than this are ignored)
  */
-async function findNewestAudioFile(dir) {
+async function findNewestAudioFile(dir, minTime = 0) {
   const audioExtensions = ['.flac', '.mp3', '.m4a', '.aac', '.ogg', '.opus', '.wav']
   let newestFile = null
   let newestMtime = 0
 
   async function walk(currentDir) {
-    const entries = await fsp.readdir(currentDir, { withFileTypes: true })
-    for (const entry of entries) {
-      const fullPath = path.join(currentDir, entry.name)
-      if (entry.isDirectory()) {
-        await walk(fullPath)
-      } else if (entry.isFile()) {
-        const ext = path.extname(entry.name).toLowerCase()
-        if (audioExtensions.includes(ext)) {
-          const stat = await fsp.stat(fullPath)
-          if (stat.mtimeMs > newestMtime) {
-            newestMtime = stat.mtimeMs
-            newestFile = fullPath
+    try {
+      const entries = await fsp.readdir(currentDir, { withFileTypes: true })
+      for (const entry of entries) {
+        const fullPath = path.join(currentDir, entry.name)
+        if (entry.isDirectory()) {
+          await walk(fullPath)
+        } else if (entry.isFile()) {
+          const ext = path.extname(entry.name).toLowerCase()
+          if (audioExtensions.includes(ext)) {
+            const stat = await fsp.stat(fullPath)
+            // Only consider files created/modified after minTime
+            if (stat.mtimeMs > minTime && stat.mtimeMs > newestMtime) {
+              newestMtime = stat.mtimeMs
+              newestFile = fullPath
+            }
           }
         }
       }
+    } catch (e) {
+      // Ignore permission errors etc.
     }
   }
 
@@ -281,6 +362,7 @@ async function fetchPlaylistTracks(url, limit = 50) {
 }
 
 module.exports = {
+  smartDownload,
   downloadTrack,
   cleanupTempDir,
   fetchPlaylistTracks,

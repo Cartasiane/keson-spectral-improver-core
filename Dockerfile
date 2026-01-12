@@ -37,7 +37,6 @@ RUN npm ci --only=production
 # Copy source code
 COPY src/ ./src/
 COPY bin/ ./bin/
-COPY vendor/ ./vendor/
 COPY docker-entrypoint.sh ./
 
 # Install Python dependencies for whatsmybitrate (quality analysis)

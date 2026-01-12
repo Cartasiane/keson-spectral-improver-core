@@ -49,10 +49,11 @@ async function runAuth() {
   localStorage.clear()
 
   // Initialize Tidal Auth
+  // Note: 'offline_access' scope is required to get a refresh_token for automatic renewal
   await auth.init({
     clientId: config.TIDAL_CLIENT_ID,
     clientSecret: config.TIDAL_CLIENT_SECRET,
-    scopes: ['user.read'],
+    scopes: ['user.read', 'offline_access'],
     credentialsStorageKey: 'tidalsdk_auth',
     storage: localStorage,
     credentialsStorage: {

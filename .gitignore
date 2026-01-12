@@ -1,3 +1,7 @@
 node_modules/
 .DS_Store
 .env
+
+# Tidal auth credentials (sensitive!)
+tidal-local-storage-scratch/
+tidal_tokens.json

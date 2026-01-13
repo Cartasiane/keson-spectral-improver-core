@@ -5,3 +5,6 @@ node_modules/
 # Tidal auth credentials (sensitive!)
 tidal-local-storage-scratch/
 tidal_tokens.json
+
+# Downloaded audio files
+downloads/

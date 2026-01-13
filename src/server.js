@@ -13,7 +13,13 @@ const { searchTrack, searchTracks } = require('./tidal')
 const { searchSoundCloud } = require('./soundcloud')
 const { extractMetadata, buildSearchQuery } = require('./metadata')
 const { scoreMatch } = require('./matcher')
+const { createTaskQueue } = require('./queue')
 const config = require('./config')
+
+// Rate limiting configuration
+const MAX_CONCURRENT_DOWNLOADS = parseInt(process.env.MAX_CONCURRENT_DOWNLOADS) || 3
+const MAX_QUEUE_SIZE = parseInt(process.env.MAX_QUEUE_SIZE) || 20
+const downloadQueue = createTaskQueue(MAX_CONCURRENT_DOWNLOADS, MAX_QUEUE_SIZE)
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -57,7 +63,11 @@ app.get('/health', (req, res) => {
     service: 'keson-core',
     version: require('../package.json').version,
     uptime: process.uptime(),
-    idhs_configured: !!config.IDHS_API_BASE_URL
+    idhs_configured: !!config.IDHS_API_BASE_URL,
+    queue: {
+      max_concurrent: MAX_CONCURRENT_DOWNLOADS,
+      max_queue_size: MAX_QUEUE_SIZE
+    }
   })
 })
 
@@ -72,23 +82,29 @@ app.post('/download', async (req, res) => {
   console.log(`[download] Request for: ${url}`)
 
   try {
-    const result = await downloadTrack(url, { source, token })
+    const result = await downloadQueue.add(async () => {
+      const dlResult = await downloadTrack(url, { source, token })
 
-    // Move file from temp to downloads directory
-    const filename = path.basename(result.path)
-    const destPath = path.join(DOWNLOADS_DIR, filename)
-    await fsp.copyFile(result.path, destPath)
-    await cleanupTempDir(result.tempDir)
+      // Move file from temp to downloads directory
+      const filename = path.basename(dlResult.path)
+      const destPath = path.join(DOWNLOADS_DIR, filename)
+      await fsp.copyFile(dlResult.path, destPath)
+      await cleanupTempDir(dlResult.tempDir)
 
-    const downloadUrl = `/files/${filename}`
+      return { ...dlResult, filename, downloadUrl: `/files/${filename}` }
+    })
 
     res.json({
       success: true,
       metadata: result.metadata,
-      filename,
-      downloadUrl // Return relative path e.g. /files/song.mp3
+      filename: result.filename,
+      downloadUrl: result.downloadUrl
     })
   } catch (error) {
+    if (error.code === 'QUEUE_FULL') {
+      console.warn('[download] Queue full, rejecting request')
+      return res.status(503).json({ error: 'Server busy, try again later', code: 'QUEUE_FULL' })
+    }
     console.error('[download] Failed:', error)
     res.status(500).json({ error: error.message })
   }
@@ -340,35 +356,47 @@ app.post('/download-any', async (req, res) => {
       }
     }
 
-    // Download from SoundCloud (or original if already SC)
-    const result = await downloadTrack(targetUrl, { source, token })
+    // Queue the download
+    const result = await downloadQueue.add(async () => {
+      const dlResult = await downloadTrack(targetUrl, { source, token })
 
-    // Move file from temp to downloads directory
-    const filename = path.basename(result.path)
-    const destPath = path.join(DOWNLOADS_DIR, filename)
-    await fsp.copyFile(result.path, destPath)
-    await cleanupTempDir(result.tempDir)
+      // Move file from temp to downloads directory
+      const filename = path.basename(dlResult.path)
+      const destPath = path.join(DOWNLOADS_DIR, filename)
+      await fsp.copyFile(dlResult.path, destPath)
+      await cleanupTempDir(dlResult.tempDir)
 
-    // Also run quality analysis
-    let quality = null
-    try {
-      quality = await analyzeTrackQuality(destPath, result.metadata || {})
-    } catch (err) {
-      console.warn('[download-any] Quality analysis failed:', err.message)
-    }
+      // Also run quality analysis
+      let quality = null
+      try {
+        quality = await analyzeTrackQuality(destPath, dlResult.metadata || {})
+      } catch (err) {
+        console.warn('[download-any] Quality analysis failed:', err.message)
+      }
 
-    const downloadUrl = `/files/${filename}`
+      return {
+        ...dlResult,
+        filename,
+        destPath,
+        quality,
+        downloadUrl: `/files/${filename}`
+      }
+    })
 
     res.json({
       success: true,
       originalUrl: url,
       resolvedUrl: targetUrl !== url ? targetUrl : null,
       metadata: result.metadata,
-      quality,
-      filename,
-      downloadUrl // Return relative path
+      quality: result.quality,
+      filename: result.filename,
+      downloadUrl: result.downloadUrl
     })
   } catch (error) {
+    if (error.code === 'QUEUE_FULL') {
+      console.warn('[download-any] Queue full, rejecting request')
+      return res.status(503).json({ error: 'Server busy, try again later', code: 'QUEUE_FULL' })
+    }
     console.error('[download-any] Failed:', error)
     res.status(500).json({ error: error.message })
   }

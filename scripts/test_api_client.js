@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { createAPIClient } = require('@tidal-music/api');
 
-const TOKEN_FILE = path.join(__dirname, 'tidal_tokens.json');
+const TOKEN_FILE = path.join(__dirname, '..', 'tidal_tokens.json');
 
 async function test() {
     try {

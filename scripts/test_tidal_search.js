@@ -1,5 +1,5 @@
-const { smartDownload } = require('./src/downloader');
-const { searchTrack } = require('./src/tidal');
+const { smartDownload } = require('../src/downloader');
+const { searchTrack } = require('../src/tidal');
 
 (async () => {
     try {

@@ -40,6 +40,11 @@ const SOUND_CLOUD_REGEX = /(https?:\/\/(?:[\w-]+\.)?soundcloud\.com\/[\w\-.\/?=&
 const THUMB_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp'])
 const INFO_SUFFIX = '.info.json'
 
+// ---- Search Configuration ----
+const TIDAL_MATCH_THRESHOLD = parseInt(process.env.TIDAL_MATCH_THRESHOLD) || 70
+const SOUNDCLOUD_MATCH_THRESHOLD = parseInt(process.env.SOUNDCLOUD_MATCH_THRESHOLD) || 25
+const TIDAL_COUNTRY_CODE = process.env.TIDAL_COUNTRY_CODE || 'US'
+
 // Legacy (kept for backwards compat)
 const SOUNDCLOUD_OAUTH_TOKEN = process.env.SOUNDCLOUD_OAUTH_TOKEN || process.env.SOUNDCLOUD_OAUTH
 
@@ -74,5 +79,9 @@ module.exports = {
   SOUND_CLOUD_REGEX,
   SOUNDCLOUD_OAUTH_TOKEN,
   THUMB_EXTENSIONS,
+  // Search configuration
+  TIDAL_MATCH_THRESHOLD,
+  SOUNDCLOUD_MATCH_THRESHOLD,
+  TIDAL_COUNTRY_CODE,
   validateCoreEnv
 }

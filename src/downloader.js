@@ -6,6 +6,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 const config = require('./config')
+const { spawnCollect } = require('./utils')
 const { searchTrack } = require('./tidal')
 
 /**
@@ -139,7 +140,6 @@ async function downloadWithYtDlp(url, outputDir, options = {}) {
         duration: info.duration,
         bitrate: info.abr || info.tbr,
         thumbnail: info.thumbnail,
-        thumbnail: info.thumbnail,
         source: 'soundcloud'
       }
       console.log('[yt-dlp] Extracted metadata:', JSON.stringify(metadata, null, 2));
@@ -158,9 +158,8 @@ async function downloadWithYtDlp(url, outputDir, options = {}) {
  * Download using tidal-dl-ng (for Tidal URLs)
  */
 async function downloadWithTidalDlNg(url, outputDir, options = {}) {
-  // Use local debug version
-  const projectRoot = '/Users/tak/Documents/dev/Keson-spectral-improver'
-  const tidalPath = path.join(projectRoot, 'venv/bin/python')
+  // Use configured tidal-dl-ng path or default to PATH
+  const tidalPath = config.TIDAL_DL_NG_PATH || 'tidal-dl-ng'
   
   const args = [
     '-m',
@@ -287,40 +286,6 @@ function isTidalUrl(url) {
   } catch {
     return false
   }
-}
-
-/**
- * Spawn a process and collect stdout/stderr
- */
-function spawnCollect(cmd, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, {
-      ...options,
-      stdio: ['ignore', 'pipe', 'pipe']
-    })
-
-    let stdout = ''
-    let stderr = ''
-
-    child.stdout.on('data', chunk => {
-      stdout += chunk.toString()
-    })
-    child.stderr.on('data', chunk => {
-      stderr += chunk.toString()
-    })
-    child.on('error', err => {
-      reject(new Error(`Failed to spawn ${cmd}: ${err.message}`))
-    })
-    child.on('close', code => {
-      if (code !== 0) {
-        const error = new Error(`${cmd} exited with code ${code}`)
-        error.stdout = stdout
-        error.stderr = stderr
-        return reject(error)
-      }
-      resolve({ stdout, stderr })
-    })
-  })
 }
 
 /**

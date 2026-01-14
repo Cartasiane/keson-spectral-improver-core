@@ -1,5 +1,6 @@
 'use strict'
 
+const { spawn } = require('node:child_process')
 const { SOUND_CLOUD_REGEX } = require('./config')
 const messages = require('./messages')
 
@@ -15,12 +16,6 @@ function extractFirstUrl(text) {
   const match = text.match(/https?:\/\/[^\s]+/i)
   if (!match) return null
   return match[0].replace(/[\]\)>,\s]+$/, '')
-}
-
-function isBotCommand(ctx) {
-  const entities = ctx.message.entities
-  if (!entities) return false
-  return entities.some(entity => entity.type === 'bot_command' && entity.offset === 0)
 }
 
 function formatUserFacingError(error) {
@@ -82,13 +77,67 @@ function isSoundCloudPlaylist(url) {
   }
 }
 
+/**
+ * Spawn a process and collect stdout/stderr
+ * Shared utility for downloading and quality analysis
+ */
+function spawnCollect(cmd, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, {
+      ...options,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    child.stdout.on('data', chunk => {
+      stdout += chunk.toString()
+    })
+    child.stderr.on('data', chunk => {
+      stderr += chunk.toString()
+    })
+    child.on('error', err => {
+      reject(new Error(`Failed to spawn ${cmd}: ${err.message}`))
+    })
+    child.on('close', code => {
+      if (code !== 0) {
+        const error = new Error(`${cmd} exited with code ${code}`)
+        error.stdout = stdout
+        error.stderr = stderr
+        return reject(error)
+      }
+      resolve({ stdout, stderr })
+    })
+  })
+}
+
+/**
+ * Clean string for search purposes
+ * Removes common suffixes, extra info, and normalizes
+ */
+function cleanForSearch(str) {
+  if (!str) return ''
+  
+  return str
+    .replace(/\s*\(.*?\)\s*/g, ' ')  // Remove parenthetical content
+    .replace(/\s*\[.*?\]\s*/g, ' ')  // Remove bracketed content
+    .replace(/feat\..*$/i, '')       // Remove "feat." and after
+    .replace(/ft\..*$/i, '')         // Remove "ft." and after
+    .split(' - ')[0]                 // Keep only first part before " - "
+    .replace(/\s+/g, ' ')            // Normalize whitespace
+    .trim()
+}
+
 module.exports = {
+  cleanForSearch,
   extractFirstUrl,
   extractReadableErrorText,
   extractSoundCloudUrl,
   formatUserFacingError,
-  isBotCommand,
   isSoundCloudPlaylist,
   pickUserFriendlyLine,
+  spawnCollect,
   truncate
 }
+

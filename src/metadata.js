@@ -59,7 +59,7 @@ async function extractMetadata(filePath) {
  * Probe audio file for ID3/metadata tags using ffprobe
  */
 async function probeFileTags(filePath) {
-  const ffprobePath = config.FFPROBE_BINARY_PATH || 'ffprobe'
+  const ffprobePath = config.FFPROBE_PATH || 'ffprobe'
   
   return new Promise((resolve, reject) => {
     const args = [
@@ -113,7 +113,7 @@ async function probeFileTags(filePath) {
  * Probe just the duration of an audio file
  */
 async function probeDuration(filePath) {
-  const ffprobePath = config.FFPROBE_BINARY_PATH || 'ffprobe'
+  const ffprobePath = config.FFPROBE_PATH || 'ffprobe'
   
   return new Promise((resolve, reject) => {
     const args = [

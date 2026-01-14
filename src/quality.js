@@ -1,8 +1,8 @@
 'use strict'
 
 const path = require('node:path')
-const { spawn } = require('node:child_process')
 const messages = require('./messages')
+const { spawnCollect } = require('./utils')
 const {
   ENABLE_QUALITY_ANALYSIS,
   FFPROBE_PATH,
@@ -156,31 +156,6 @@ function extractKbps(value) {
     }
   }
   return null
-}
-
-function spawnCollect(cmd, args) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
-    let stdout = ''
-    let stderr = ''
-
-    child.stdout.on('data', chunk => {
-      stdout += chunk.toString()
-    })
-    child.stderr.on('data', chunk => {
-      stderr += chunk.toString()
-    })
-    child.on('error', reject)
-    child.on('close', code => {
-      if (code !== 0) {
-        const error = new Error(`${cmd} exited with ${code}`)
-        error.stdout = stdout
-        error.stderr = stderr
-        return reject(error)
-      }
-      resolve({ stdout, stderr })
-    })
-  })
 }
 
 function qualityDebug(...args) {

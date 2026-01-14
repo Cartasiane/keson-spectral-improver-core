@@ -114,7 +114,7 @@ async function searchByIsrc(isrc) {
     const token = await getAccessToken()
     if (!token) return []
 
-    const countryCode = 'US'
+    const countryCode = config.TIDAL_COUNTRY_CODE
     const searchUrl = `https://openapi.tidal.com/v2/tracks`
     
     console.log(`[tidal] ISRC search: ${isrc}`)
@@ -166,7 +166,7 @@ async function searchTracks(metadata) {
     const token = await getAccessToken()
     if (!token) return []
 
-    const countryCode = 'US'
+    const countryCode = config.TIDAL_COUNTRY_CODE
     const encodedQuery = encodeURIComponent(query)
     const searchUrl = `https://openapi.tidal.com/v2/searchResults/${encodedQuery}`
     
@@ -174,7 +174,6 @@ async function searchTracks(metadata) {
     
     const response = await axios.get(searchUrl, {
       params: {
-        countryCode,
         countryCode,
         include: 'tracks.artists,tracks.albums'
       },

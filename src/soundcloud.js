@@ -1,7 +1,7 @@
 'use strict'
 
-const { spawn } = require('child_process')
 const config = require('./config')
+const { spawnCollect, cleanForSearch } = require('./utils')
 
 /**
  * Search SoundCloud for tracks matching metadata
@@ -96,42 +96,6 @@ function cleanForSearch(str) {
     .split(' - ')[0]                  // Keep only first part before " - "
     .replace(/\s+/g, ' ')
     .trim()
-}
-
-/**
- * Spawn a command and collect output
- */
-function spawnCollect(cmd, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, {
-      ...options,
-      timeout: 30000 // 30 second timeout
-    })
-    
-    let stdout = ''
-    let stderr = ''
-
-    proc.stdout.on('data', (data) => { stdout += data })
-    proc.stderr.on('data', (data) => { stderr += data })
-
-    proc.on('close', (code) => {
-      if (code !== 0 && code !== null) {
-        return reject(new Error(`${cmd} exited with code ${code}: ${stderr}`))
-      }
-      resolve({ stdout, stderr })
-    })
-
-    proc.on('error', reject)
-    
-    // Handle timeout
-    setTimeout(() => {
-      try {
-        proc.kill('SIGTERM')
-      } catch (e) {
-        // Ignore kill errors
-      }
-    }, 30000)
-  })
 }
 
 module.exports = {

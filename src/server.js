@@ -157,8 +157,8 @@ async function handleTrackSearch(req, res) {
   const query = req.body?.query || req.query?.query
   const providedMetadata = req.body?.metadata
   
-  const TIDAL_THRESHOLD = 70
-  const SOUNDCLOUD_THRESHOLD = 25  // Very permissive - rely on duration check post-download
+  const TIDAL_THRESHOLD = config.TIDAL_MATCH_THRESHOLD
+  const SOUNDCLOUD_THRESHOLD = config.SOUNDCLOUD_MATCH_THRESHOLD
 
   if (!query && !providedMetadata) {
     return res.status(400).json({ error: 'Missing query or metadata' })
@@ -403,8 +403,24 @@ app.post('/download-any', async (req, res) => {
 })
 
 // ---- Start server ----
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Keson Core Server running on port ${PORT}`)
   console.log(`IDHS API: ${config.IDHS_API_BASE_URL}`)
   console.log(`Quality analysis: ${config.ENABLE_QUALITY_ANALYSIS ? 'enabled' : 'disabled'}`)
+})
+
+// Graceful shutdown for Docker
+process.on('SIGTERM', () => {
+  console.log('[server] SIGTERM received, shutting down gracefully...')
+  server.close(() => {
+    console.log('[server] HTTP server closed')
+    process.exit(0)
+  })
+})
+
+process.on('SIGINT', () => {
+  console.log('[server] SIGINT received, shutting down...')
+  server.close(() => {
+    process.exit(0)
+  })
 })

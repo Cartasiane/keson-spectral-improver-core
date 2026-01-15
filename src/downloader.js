@@ -162,8 +162,6 @@ async function downloadWithTidalDlNg(url, outputDir, options = {}) {
   const tidalPath = config.TIDAL_DL_NG_PATH || 'tidal-dl-ng'
   
   const args = [
-    '-m',
-    'tidal_dl_ng.cli',
     'dl',
     url
   ]

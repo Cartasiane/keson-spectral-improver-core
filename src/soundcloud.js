@@ -82,22 +82,6 @@ function buildQuery(metadata) {
   return parts.join(' ')
 }
 
-/**
- * Clean string for search
- */
-function cleanForSearch(str) {
-  if (!str) return ''
-  
-  return str
-    .replace(/\s*\(.*?\)\s*/g, ' ')  // Remove parenthetical
-    .replace(/\s*\[.*?\]\s*/g, ' ')  // Remove brackets
-    .replace(/feat\..*/i, '')        // Remove featuring
-    .replace(/ft\..*/i, '')
-    .split(' - ')[0]                  // Keep only first part before " - "
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
 module.exports = {
   searchSoundCloud
 }

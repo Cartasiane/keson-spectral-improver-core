@@ -1,7 +1,9 @@
 services:
   # IDHS - Music link converter (Spotify/Tidal/YouTube → SoundCloud)
   idhs:
-    image: sjdonado/idonthavespotify:latest
+    build:
+      context: https://github.com/sjdonado/idonthavespotify.git
+      dockerfile: Dockerfile
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - APP_URL=${IDHS_APP_URL:-http://localhost:3000}
@@ -40,9 +42,7 @@ services:
 
   # Keson Core - Audio download and quality analysis API
   keson-core:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/cartasiane/keson-spectral-improver-core:latest
     environment:
       - PORT=3001
       - IDHS_API_BASE_URL=http://idhs:3000
@@ -54,8 +54,9 @@ services:
       # - TIDAL_TOKEN_JSON={"accessToken": "..."}
       # - TIDAL_SETTINGS_JSON={"quality_audio": "LOSSLESS", ...}
     ports:
-      - "${KESON_PORT:-3001}:3001"
+      - "${KESON_PORT:-42069}:3001"
     volumes:
+      - keson-data:/app/data
       - keson-downloads:/app/downloads
     depends_on:
       idhs:
@@ -69,4 +70,5 @@ services:
 
 volumes:
   idhs-data:
+  keson-data:
   keson-downloads:

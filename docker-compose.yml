@@ -58,6 +58,7 @@ services:
     volumes:
       - keson-data:/app/data
       - keson-downloads:/app/downloads
+      - tidal-config:/root/.config/tidal_dl_ng
     depends_on:
       idhs:
         condition: service_healthy
@@ -72,3 +73,5 @@ volumes:
   idhs-data:
   keson-data:
   keson-downloads:
+  tidal-config:
+

@@ -11,9 +11,21 @@ if [ -n "$TIDAL_TOKEN_JSON" ]; then
     echo "$TIDAL_TOKEN_JSON" > "$CONFIG_DIR/token.json"
 fi
 
+# Create default settings with FFmpeg path if no settings provided
 if [ -n "$TIDAL_SETTINGS_JSON" ]; then
     echo "Found TIDAL_SETTINGS_JSON environment variable, copying..."
     echo "$TIDAL_SETTINGS_JSON" > "$CONFIG_DIR/settings.json"
+elif [ ! -f "$CONFIG_DIR/settings.json" ]; then
+    echo "Creating default tidal-dl-ng settings with FFmpeg path..."
+    cat > "$CONFIG_DIR/settings.json" << 'EOF'
+{
+    "download_path": "/root/download",
+    "quality_audio": "lossless",
+    "quality_video": "high",
+    "video_convert_mp4": true,
+    "path_binary_ffmpeg": "/usr/bin/ffmpeg"
+}
+EOF
 fi
 
 # 2. Docker Secrets (Secure fallback)

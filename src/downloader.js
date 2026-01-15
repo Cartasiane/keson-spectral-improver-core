@@ -211,15 +211,21 @@ async function downloadWithTidalDlNg(url, outputDir, options = {}) {
     throw new Error(`tidal-dl-ng did not produce an audio file. stderr: ${stderr}`)
   }
 
+  // Copy file from tidal-dl-ng's location to the expected outputDir
+  const originalFilename = path.basename(filePath)
+  const destPath = path.join(outputDir, originalFilename)
+  await fsp.copyFile(filePath, destPath)
+  console.log(`[tidal-dl-ng] Copied to: ${destPath}`)
+
   // Extract basic metadata from filename/path
-  const filename = path.basename(filePath, path.extname(filePath))
+  const filename = path.basename(destPath, path.extname(destPath))
   const metadata = {
     title: filename,
     source: 'tidal'
   }
 
   return {
-    filePath,
+    filePath: destPath,
     metadata
   }
 }

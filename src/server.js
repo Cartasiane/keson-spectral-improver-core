@@ -15,6 +15,7 @@ const { extractMetadata, buildSearchQuery } = require('./metadata')
 const { scoreMatch } = require('./matcher')
 const { createTaskQueue } = require('./queue')
 const config = require('./config')
+const { registerClient, getAuthStatus, authMiddleware } = require('./auth')
 
 // Rate limiting configuration
 const MAX_CONCURRENT_DOWNLOADS = parseInt(process.env.MAX_CONCURRENT_DOWNLOADS) || 3
@@ -31,11 +32,18 @@ fs.mkdirSync(DOWNLOADS_DIR, { recursive: true })
 app.use(express.json())
 
 // Serve downloaded files (and delete after sending)
-app.use('/files', (req, res, next) => {
+// Protected: requires valid client token
+app.use('/files', authMiddleware, (req, res, next) => {
   const filePath = path.join(DOWNLOADS_DIR, req.path)
+  const resolved = path.resolve(filePath)
+  
+  // Path traversal protection
+  if (!resolved.startsWith(path.resolve(DOWNLOADS_DIR))) {
+    return res.status(403).json({ error: 'Forbidden' })
+  }
   
   // Check if file exists
-  if (!fs.existsSync(filePath)) {
+  if (!fs.existsSync(resolved)) {
     return res.status(404).json({ error: 'File not found' })
   }
   
@@ -71,8 +79,44 @@ app.get('/health', (req, res) => {
   })
 })
 
+// ---- Auth Status (public) ----
+app.get('/auth/status', (req, res) => {
+  const status = getAuthStatus()
+  res.json({
+    success: true,
+    ...status
+  })
+})
+
+// ---- Client Registration ----
+app.post('/register', (req, res) => {
+  const { invite_code, device_name } = req.body
+  
+  if (!invite_code) {
+    return res.status(400).json({ error: 'Missing invite_code' })
+  }
+  
+  try {
+    const token = registerClient(invite_code, { device_name })
+    res.json({
+      success: true,
+      client_token: token
+    })
+  } catch (err) {
+    if (err.message === 'INVALID_INVITE_CODE') {
+      return res.status(401).json({ 
+        error: 'Invalid invite code',
+        code: 'INVALID_INVITE_CODE'
+      })
+    }
+    console.error('[register] Error:', err)
+    res.status(500).json({ error: 'Registration failed' })
+  }
+})
+
 // ---- Download Track ----
-app.post('/download', async (req, res) => {
+// Protected: requires valid client token
+app.post('/download', authMiddleware, async (req, res) => {
   const { url, source, token } = req.body
 
   if (!url) {
@@ -115,7 +159,8 @@ app.post('/download', async (req, res) => {
 // It works for files that Core has downloaded (e.g., via /download endpoint), 
 // but NOT for files that only exist on the GUI client's machine.
 // For remote GUI deployments, quality analysis is done locally in the GUI using whatsmybitrate.
-app.post('/analyze', async (req, res) => {
+// Protected: requires valid client token
+app.post('/analyze', authMiddleware, async (req, res) => {
   const { filePath, metadata } = req.body
 
   if (!filePath) {
@@ -254,13 +299,16 @@ async function handleTrackSearch(req, res) {
 }
 
 // POST endpoint (preferred - accepts metadata JSON body)
-app.post('/search/track', handleTrackSearch)
+// Protected: requires valid client token
+app.post('/search/track', authMiddleware, handleTrackSearch)
 
 // GET endpoint (backward compatibility - query params only)
-app.get('/search/track', handleTrackSearch)
+// Protected: requires valid client token
+app.get('/search/track', authMiddleware, handleTrackSearch)
 
 // ---- Legacy Tidal Search Endpoint (backwards compatibility) ----
-app.get('/search/tidal', async (req, res) => {
+// Protected: requires valid client token
+app.get('/search/tidal', authMiddleware, async (req, res) => {
   const { query } = req.query
 
   if (!query) {
@@ -294,7 +342,8 @@ app.get('/search/tidal', async (req, res) => {
 })
 
 // ---- Resolve Link via IDHS ----
-app.post('/resolve', async (req, res) => {
+// Protected: requires valid client token
+app.post('/resolve', authMiddleware, async (req, res) => {
   const { url } = req.body
 
   if (!url) {
@@ -329,7 +378,8 @@ app.post('/resolve', async (req, res) => {
 })
 
 // ---- Download + Resolve (convenience endpoint) ----
-app.post('/download-any', async (req, res) => {
+// Protected: requires valid client token
+app.post('/download-any', authMiddleware, async (req, res) => {
   const { url, source, token } = req.body
 
   if (!url) {

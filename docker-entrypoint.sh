@@ -11,11 +11,21 @@ if [ -n "$TIDAL_TOKEN_JSON" ]; then
     echo "$TIDAL_TOKEN_JSON" > "$CONFIG_DIR/token.json"
 fi
 
-# Create default settings with FFmpeg path if no settings provided
+# Always ensure settings.json has FFmpeg path
 if [ -n "$TIDAL_SETTINGS_JSON" ]; then
     echo "Found TIDAL_SETTINGS_JSON environment variable, copying..."
     echo "$TIDAL_SETTINGS_JSON" > "$CONFIG_DIR/settings.json"
-elif [ ! -f "$CONFIG_DIR/settings.json" ]; then
+fi
+
+# Create or update settings with FFmpeg path if missing
+if [ -f "$CONFIG_DIR/settings.json" ]; then
+    # Check if path_binary_ffmpeg is set
+    if ! grep -q '"path_binary_ffmpeg"' "$CONFIG_DIR/settings.json" 2>/dev/null; then
+        echo "Adding FFmpeg path to existing settings..."
+        # Add ffmpeg path to existing JSON (simple sed approach)
+        sed -i 's/}$/,"path_binary_ffmpeg":"\/usr\/bin\/ffmpeg"}/' "$CONFIG_DIR/settings.json"
+    fi
+else
     echo "Creating default tidal-dl-ng settings with FFmpeg path..."
     cat > "$CONFIG_DIR/settings.json" << 'EOF'
 {

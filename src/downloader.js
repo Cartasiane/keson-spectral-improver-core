@@ -77,6 +77,40 @@ async function downloadTrack(url, options = {}) {
 }
 
 /**
+ * Resolve short URLs (like link.tidal.com) by following redirects
+ */
+async function resolveShortUrl(url) {
+  const https = require('https')
+  const http = require('http')
+  
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith('https') ? https : http
+    
+    const req = protocol.get(url, { 
+      timeout: 10000,
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    }, (res) => {
+      // If redirect, return the Location header
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        resolve(res.headers.location)
+      } else if (res.statusCode >= 200 && res.statusCode < 300) {
+        // No redirect, return original URL
+        resolve(url)
+      } else {
+        reject(new Error(`Failed to resolve URL: ${res.statusCode}`))
+      }
+      res.destroy()
+    })
+    
+    req.on('error', reject)
+    req.on('timeout', () => {
+      req.destroy()
+      reject(new Error('Timeout resolving URL'))
+    })
+  })
+}
+
+/**
  * Download using yt-dlp (primarily for SoundCloud)
  */
 async function downloadWithYtDlp(url, outputDir, options = {}) {
@@ -161,12 +195,20 @@ async function downloadWithTidalDlNg(url, outputDir, options = {}) {
   // Use configured tidal-dl-ng path or default to PATH
   const tidalPath = config.TIDAL_DL_NG_PATH || 'tidal-dl-ng'
   
+  // Resolve short URLs (link.tidal.com) to full URLs
+  let resolvedUrl = url
+  if (url.includes('link.tidal.com')) {
+    console.log(`[tidal-dl-ng] Resolving short URL: ${url}`)
+    resolvedUrl = await resolveShortUrl(url)
+    console.log(`[tidal-dl-ng] Resolved to: ${resolvedUrl}`)
+  }
+  
   const args = [
     'dl',
-    url
+    resolvedUrl
   ]
 
-  console.log(`[tidal-dl-ng] Downloading: ${url} using local source`)
+  console.log(`[tidal-dl-ng] Downloading: ${resolvedUrl} using local source`)
 
   // Run from project root to allow module import
   const homeDir = require('os').homedir()

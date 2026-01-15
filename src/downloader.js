@@ -182,7 +182,7 @@ async function downloadWithTidalDlNg(url, outputDir, options = {}) {
   let stderr = ''
 
   try {
-      const result = await spawnCollect(tidalPath, args, { cwd: projectRoot })
+      const result = await spawnCollect(tidalPath, args, { cwd: homeDir })
       stdout = result.stdout
       stderr = result.stderr
       

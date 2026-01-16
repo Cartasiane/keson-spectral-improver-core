@@ -34,9 +34,11 @@ if [ ! -f "$CONFIG_DIR/settings.json" ]; then
     cat > "$CONFIG_DIR/settings.json" << 'EOF'
 {
     "download_path": "/root/download",
-    "quality_audio": "high",
-    "quality_video": "high",
-    "video_convert_mp4": true,
+    "quality_audio": "LOSSLESS",
+    "quality_video": "1080",
+    "video_convert_mp4": false,
+    "video_download": false,
+    "extract_flac": false,
     "path_binary_ffmpeg": "/usr/bin/ffmpeg"
 }
 EOF

@@ -34,8 +34,14 @@ app.use(express.json())
 // Serve downloaded files (and delete after sending)
 // Protected: requires valid client token
 app.use('/files', authMiddleware, (req, res, next) => {
-  const filePath = path.join(DOWNLOADS_DIR, req.path)
+  // Decode URL-encoded path (e.g. %20 -> space)
+  const decodedPath = decodeURIComponent(req.path)
+  console.log(`[files] Request for: ${req.path} -> decoded: ${decodedPath}`)
+  console.log(`[files] DOWNLOADS_DIR: ${DOWNLOADS_DIR}`)
+  
+  const filePath = path.join(DOWNLOADS_DIR, decodedPath)
   const resolved = path.resolve(filePath)
+  console.log(`[files] Resolved path: ${resolved}`)
   
   // Path traversal protection
   if (!resolved.startsWith(path.resolve(DOWNLOADS_DIR))) {
@@ -44,8 +50,18 @@ app.use('/files', authMiddleware, (req, res, next) => {
   
   // Check if file exists
   if (!fs.existsSync(resolved)) {
+    console.log(`[files] File NOT found at: ${resolved}`)
+    // List what files ARE in the directory
+    try {
+      const files = fs.readdirSync(DOWNLOADS_DIR)
+      console.log(`[files] Files in DOWNLOADS_DIR:`, files)
+    } catch (e) {
+      console.log(`[files] Could not list DOWNLOADS_DIR: ${e.message}`)
+    }
     return res.status(404).json({ error: 'File not found' })
   }
+  
+  console.log(`[files] File found, sending...`)
   
   // Send file, then delete it after transfer completes
   res.sendFile(resolved, (err) => {
@@ -421,7 +437,11 @@ app.post('/download-any', authMiddleware, async (req, res) => {
       // Move file from temp to downloads directory
       const filename = path.basename(dlResult.path)
       const destPath = path.join(DOWNLOADS_DIR, filename)
+      console.log(`[download-any] Copying from: ${dlResult.path}`)
+      console.log(`[download-any] Copying to: ${destPath}`)
+      console.log(`[download-any] Source exists: ${fs.existsSync(dlResult.path)}`)
       await fsp.copyFile(dlResult.path, destPath)
+      console.log(`[download-any] Copy complete, dest exists: ${fs.existsSync(destPath)}`)
       await cleanupTempDir(dlResult.tempDir)
 
       // Also run quality analysis

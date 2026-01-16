@@ -39,10 +39,11 @@ COPY src/ ./src/
 COPY bin/ ./bin/
 COPY docker-entrypoint.sh ./
 
-# Install Python dependencies for whatsmybitrate (quality analysis)
+# Install Python dependencies for whatsmybitrate (quality analysis) and mutagen (thumbnail embedding)
 RUN python3 -m pip install --break-system-packages \
     numpy \
     scipy \
+    mutagen \
     && chmod +x bin/* 2>/dev/null || true \
     && chmod +x docker-entrypoint.sh
 

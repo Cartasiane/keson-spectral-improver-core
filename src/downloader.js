@@ -117,18 +117,25 @@ async function downloadWithYtDlp(url, outputDir, options = {}) {
   const ytdlpPath = config.YT_DLP_BINARY_PATH || 'yt-dlp'
   const cookiesPath = options.cookiesPath || config.YT_DLP_COOKIES_PATH
 
+  // Try with thumbnail embedding first, fallback to without if it fails
+  const withThumbnail = options.skipThumbnail !== true
+
   const args = [
     '--no-playlist',
     '-x',  // Extract audio
-    '--audio-format', 'm4a',  // Force m4a for thumbnail embedding support (WAV doesn't support it)
+    '--audio-format', 'm4a',  // Force m4a for compatibility
     '--audio-quality', '0',  // Best quality
     '-o', path.join(outputDir, '%(title)s.%(ext)s'),
     '--write-info-json',
     '--no-warnings',
-    '--embed-thumbnail',    // Embed cover art
     '--embed-metadata',     // Embed metadata (title, artist, etc.)
-    '--convert-thumbnails', 'jpg',  // Convert thumbnail to jpg for compatibility
   ]
+
+  // Add thumbnail embedding if enabled
+  if (withThumbnail) {
+    args.push('--embed-thumbnail')
+    args.push('--convert-thumbnails', 'jpg')
+  }
 
   // Add cookies if available (for premium SoundCloud)
   if (cookiesPath && fs.existsSync(cookiesPath)) {
@@ -147,44 +154,65 @@ async function downloadWithYtDlp(url, outputDir, options = {}) {
 
   args.push(url)
 
-  console.log(`[yt-dlp] Downloading: ${url}`)
+  console.log(`[yt-dlp] Downloading: ${url}${withThumbnail ? '' : ' (without thumbnail)'}`)
 
-  const { stdout, stderr } = await spawnCollect(ytdlpPath, args, { cwd: outputDir })
+  try {
+    const { stdout, stderr } = await spawnCollect(ytdlpPath, args, { cwd: outputDir })
 
-  // Find the downloaded file
-  const files = await fsp.readdir(outputDir)
-  const audioFile = files.find(f => !f.endsWith('.json') && !f.startsWith('.'))
-  const infoFile = files.find(f => f.endsWith('.info.json'))
+    // Find the downloaded file
+    const files = await fsp.readdir(outputDir)
+    const audioFile = files.find(f => !f.endsWith('.json') && !f.endsWith('.jpg') && !f.startsWith('.'))
+    const infoFile = files.find(f => f.endsWith('.info.json'))
 
-  if (!audioFile) {
-    throw new Error(`yt-dlp did not produce an audio file. stderr: ${stderr}`)
-  }
-
-  // Parse metadata from info.json if available
-  let metadata = {}
-  if (infoFile) {
-    console.log('[yt-dlp] Found info.json:', infoFile);
-    try {
-      const infoJson = await fsp.readFile(path.join(outputDir, infoFile), 'utf8')
-      const info = JSON.parse(infoJson)
-      metadata = {
-        title: info.title || info.track,
-        artist: info.uploader || info.artist || info.channel,
-        album: info.album,
-        duration: info.duration,
-        bitrate: info.abr || info.tbr,
-        thumbnail: info.thumbnail,
-        source: 'soundcloud'
-      }
-      console.log('[yt-dlp] Extracted metadata:', JSON.stringify(metadata, null, 2));
-    } catch (e) {
-      console.warn('[yt-dlp] Failed to parse info.json:', e.message)
+    if (!audioFile) {
+      throw new Error(`yt-dlp did not produce an audio file. stderr: ${stderr}`)
     }
-  }
 
-  return {
-    filePath: path.join(outputDir, audioFile),
-    metadata
+    // Parse metadata from info.json if available
+    let metadata = {}
+    if (infoFile) {
+      console.log('[yt-dlp] Found info.json:', infoFile);
+      try {
+        const infoJson = await fsp.readFile(path.join(outputDir, infoFile), 'utf8')
+        const info = JSON.parse(infoJson)
+        metadata = {
+          title: info.title || info.track,
+          artist: info.uploader || info.artist || info.channel,
+          album: info.album,
+          duration: info.duration,
+          bitrate: info.abr || info.tbr,
+          thumbnail: info.thumbnail,
+          source: 'soundcloud'
+        }
+        console.log('[yt-dlp] Extracted metadata:', JSON.stringify(metadata, null, 2));
+      } catch (e) {
+        console.warn('[yt-dlp] Failed to parse info.json:', e.message)
+      }
+    }
+
+    return {
+      filePath: path.join(outputDir, audioFile),
+      metadata
+    }
+  } catch (err) {
+    // If thumbnail embedding failed and we haven't already retried, retry without thumbnail
+    const isThumbnailError = err.message && (
+      err.message.includes('thumbnail') || 
+      err.message.includes('EmbedThumbnail') ||
+      err.message.includes('Postprocessing')
+    )
+    
+    if (withThumbnail && isThumbnailError) {
+      console.warn('[yt-dlp] Thumbnail embedding failed, retrying without thumbnail...')
+      // Clean up any partial files
+      const files = await fsp.readdir(outputDir)
+      for (const f of files) {
+        await fsp.unlink(path.join(outputDir, f)).catch(() => {})
+      }
+      // Retry without thumbnail
+      return downloadWithYtDlp(url, outputDir, { ...options, skipThumbnail: true })
+    }
+    throw err
   }
 }
 

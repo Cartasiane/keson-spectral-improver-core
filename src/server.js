@@ -453,11 +453,42 @@ app.post('/download-any', authMiddleware, async (req, res) => {
 })
 
 // ---- Start server ----
-const server = app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Keson Core Server running on port ${PORT}`)
   console.log(`IDHS API: ${config.IDHS_API_BASE_URL}`)
   console.log(`Quality analysis: ${config.ENABLE_QUALITY_ANALYSIS ? 'enabled' : 'disabled'}`)
+  
+  // Check Tidal auth status
+  await checkTidalAuth()
 })
+
+/**
+ * Check if tidal-dl-ng is authenticated
+ */
+async function checkTidalAuth() {
+  const { spawnCollect } = require('./utils')
+  const tidalPath = config.TIDAL_DL_NG_PATH || 'tidal-dl-ng'
+  
+  try {
+    // Run tidal-dl-ng with a dummy command to check login status
+    const result = await spawnCollect(tidalPath, ['cfg', 'show'], { timeout: 10000 })
+    
+    if (result.stdout.includes('logged in') || result.stdout.includes('token')) {
+      console.log('═══════════════════════════════════════════════════════════')
+      console.log('  ✅ TIDAL: Authenticated')
+      console.log('═══════════════════════════════════════════════════════════')
+    } else {
+      console.log('═══════════════════════════════════════════════════════════')
+      console.log('  ⚠️  TIDAL: Not authenticated - run "tidal-dl-ng login" in container')
+      console.log('═══════════════════════════════════════════════════════════')
+    }
+  } catch (err) {
+    console.log('═══════════════════════════════════════════════════════════')
+    console.log('  ❌ TIDAL: Auth check failed -', err.message)
+    console.log('  💡 Run: docker exec -it <container> tidal-dl-ng login')
+    console.log('═══════════════════════════════════════════════════════════')
+  }
+}
 
 // Graceful shutdown for Docker
 process.on('SIGTERM', () => {

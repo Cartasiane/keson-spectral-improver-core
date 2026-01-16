@@ -4,7 +4,9 @@
   "description": "Core downloader and quality analysis logic for Keson spectral improver",
   "scripts": {
     "start": "node src/server.js",
-    "auth-tidal": "node src/auth-tidal.js"
+    "auth-tidal": "node src/auth-tidal.js",
+    "auth-tidal-simple": "node src/auth-tidal-simple.js",
+    "auth-manual": "node src/auth-tidal-manual.js"
   },
   "main": "src/index.js",
   "type": "commonjs",

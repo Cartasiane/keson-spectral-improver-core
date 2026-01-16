@@ -7,6 +7,18 @@ const config = require('./config')
 
 const TOKEN_FILE = path.join(__dirname, '..', 'tidal_tokens.json')
 
+// Check for tokens injected via ENV (e.g. from Portainer) and write to file
+if (process.env.TIDAL_TOKEN_JSON) {
+    try {
+        console.log('[tidal] Found TIDAL_TOKEN_JSON in environment. Updating token file...')
+        const tokens = JSON.parse(process.env.TIDAL_TOKEN_JSON)
+        fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2))
+        console.log('[tidal] Token file updated from environment.')
+    } catch (e) {
+        console.error('[tidal] Failed to parse TIDAL_TOKEN_JSON from env:', e.message)
+    }
+}
+
 let accessToken = null
 let tokenExpiresAt = 0
 

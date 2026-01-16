@@ -48,16 +48,16 @@ app.use('/files', authMiddleware, (req, res, next) => {
   }
   
   // Send file, then delete it after transfer completes
-  res.sendFile(filePath, (err) => {
+  res.sendFile(resolved, (err) => {
     if (err) {
       console.error(`[files] Error sending file: ${err.message}`)
     } else {
       // Delete file after successful transfer
-      fs.unlink(filePath, (unlinkErr) => {
+      fs.unlink(resolved, (unlinkErr) => {
         if (unlinkErr) {
-          console.error(`[files] Failed to delete after serving: ${filePath}`, unlinkErr.message)
+          console.error(`[files] Failed to delete after serving: ${resolved}`, unlinkErr.message)
         } else {
-          console.log(`[files] Cleaned up: ${filePath}`)
+          console.log(`[files] Cleaned up: ${resolved}`)
         }
       })
     }

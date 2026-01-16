@@ -120,7 +120,7 @@ async function downloadWithYtDlp(url, outputDir, options = {}) {
   const args = [
     '--no-playlist',
     '-x',  // Extract audio
-    '--audio-format', 'best',
+    '--audio-format', 'm4a',  // Force m4a for thumbnail embedding support (WAV doesn't support it)
     '--audio-quality', '0',  // Best quality
     '-o', path.join(outputDir, '%(title)s.%(ext)s'),
     '--write-info-json',

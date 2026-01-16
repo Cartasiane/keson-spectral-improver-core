@@ -14,7 +14,16 @@ console.log('[tidal] TOKEN_FILE path:', TOKEN_FILE)
 if (process.env.TIDAL_TOKEN_JSON) {
     console.log('[tidal] Found TIDAL_TOKEN_JSON in environment (length:', process.env.TIDAL_TOKEN_JSON.length, ')')
     try {
-        const tokens = JSON.parse(process.env.TIDAL_TOKEN_JSON)
+        let jsonString = process.env.TIDAL_TOKEN_JSON.trim()
+        
+        // Check if it's base64 encoded (doesn't start with '{')
+        if (!jsonString.startsWith('{')) {
+            console.log('[tidal] TIDAL_TOKEN_JSON appears to be base64 encoded, decoding...')
+            jsonString = Buffer.from(jsonString, 'base64').toString('utf8')
+            console.log('[tidal] Decoded JSON starts with:', jsonString.substring(0, 20))
+        }
+        
+        const tokens = JSON.parse(jsonString)
         console.log('[tidal] Parsed TIDAL_TOKEN_JSON keys:', Object.keys(tokens))
         fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2))
         console.log('[tidal] Token file written successfully.')

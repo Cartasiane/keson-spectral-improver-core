@@ -8,3 +8,4 @@ tidal_tokens.json
 
 # Downloaded audio files
 downloads/
+.env.portainer

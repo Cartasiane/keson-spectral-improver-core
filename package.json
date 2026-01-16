@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Core downloader and quality analysis logic for Keson spectral improver",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node src/server.js",
     "auth-tidal": "node src/auth-tidal.js"
   },
   "main": "src/index.js",

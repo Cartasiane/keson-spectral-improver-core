@@ -88,6 +88,14 @@ app.get('/auth/status', (req, res) => {
   })
 })
 
+// ---- Auth Validate (protected) - Used by GUI to validate tokens ----
+app.get('/auth/validate', authMiddleware, (req, res) => {
+  res.json({
+    success: true,
+    valid: true
+  })
+})
+
 // ---- Client Registration ----
 app.post('/register', (req, res) => {
   const { invite_code, device_name } = req.body

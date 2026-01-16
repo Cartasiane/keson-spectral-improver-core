@@ -241,8 +241,18 @@ async function downloadWithTidalDlNg(url, outputDir, options = {}) {
   const skipMatch = stdout.match(/Download skipped, since file exists:\s*'([^']+)'/)
   if (skipMatch) {
     // Remove newlines that may be inserted due to terminal wrapping
-    filePath = skipMatch[1].replace(/\n/g, '')
-    console.log(`[tidal-dl-ng] File already exists: ${filePath}`)
+    const existingPath = skipMatch[1].replace(/\n/g, '')
+    console.log(`[tidal-dl-ng] tidal-dl-ng says file exists at: ${existingPath}`)
+    
+    // Verify the file actually exists (it might have been moved/deleted)
+    if (fs.existsSync(existingPath)) {
+      filePath = existingPath
+      console.log(`[tidal-dl-ng] Confirmed file exists: ${filePath}`)
+    } else {
+      console.log(`[tidal-dl-ng] File not found at cached path, searching for newest...`)
+      // Fall back to finding newest file (it might have been re-downloaded anyway)
+      filePath = await findNewestAudioFile(tidalDownloadPath, downloadStartTime - 60000) // Look back 1 minute
+    }
   } else {
     // Find the downloaded file in tidal-dl-ng's download directory (only files created after start)
     filePath = await findNewestAudioFile(tidalDownloadPath, downloadStartTime)

@@ -7,17 +7,26 @@ const config = require('./config')
 
 const TOKEN_FILE = path.join(__dirname, '..', 'tidal_tokens.json')
 
+// Debug: Log token file path
+console.log('[tidal] TOKEN_FILE path:', TOKEN_FILE)
+
 // Check for tokens injected via ENV (e.g. from Portainer) and write to file
 if (process.env.TIDAL_TOKEN_JSON) {
+    console.log('[tidal] Found TIDAL_TOKEN_JSON in environment (length:', process.env.TIDAL_TOKEN_JSON.length, ')')
     try {
-        console.log('[tidal] Found TIDAL_TOKEN_JSON in environment. Updating token file...')
         const tokens = JSON.parse(process.env.TIDAL_TOKEN_JSON)
+        console.log('[tidal] Parsed TIDAL_TOKEN_JSON keys:', Object.keys(tokens))
         fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2))
-        console.log('[tidal] Token file updated from environment.')
+        console.log('[tidal] Token file written successfully.')
     } catch (e) {
         console.error('[tidal] Failed to parse TIDAL_TOKEN_JSON from env:', e.message)
     }
+} else {
+    console.log('[tidal] TIDAL_TOKEN_JSON not set in environment.')
 }
+
+// Debug: Check if token file exists after potential ENV write
+console.log('[tidal] Token file exists:', fs.existsSync(TOKEN_FILE))
 
 let accessToken = null
 let tokenExpiresAt = 0
@@ -76,22 +85,32 @@ async function refreshAccessToken(creds) {
  */
 async function getAccessToken() {
   if (accessToken && Date.now() < tokenExpiresAt) {
+    console.log('[tidal] Using cached token (valid until', new Date(tokenExpiresAt).toISOString(), ')')
     return accessToken
   }
 
   // Load from file if not loaded
+  console.log('[tidal] getAccessToken: Checking TOKEN_FILE:', TOKEN_FILE)
+  console.log('[tidal] getAccessToken: File exists:', fs.existsSync(TOKEN_FILE))
+  
   if (fs.existsSync(TOKEN_FILE)) {
       try {
-          const creds = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'))
+          const fileContent = fs.readFileSync(TOKEN_FILE, 'utf8')
+          console.log('[tidal] getAccessToken: File content length:', fileContent.length)
+          
+          const creds = JSON.parse(fileContent)
+          console.log('[tidal] getAccessToken: Parsed keys:', Object.keys(creds))
           
           // Support both 'token' (SDK format) and 'access_token' (standard OAuth format)
           const tokenValue = creds.token || creds.access_token
+          console.log('[tidal] getAccessToken: tokenValue found:', !!tokenValue, tokenValue ? `(${tokenValue.substring(0, 20)}...)` : '')
           
           if (tokenValue) {
               // Check expiry
               // Default buffer of 5 minutes
               const expiresAt = creds.expires || (creds.expires_in ? Date.now() + (creds.expires_in * 1000) : 0)
               const isExpired = !expiresAt || Date.now() > (expiresAt - 300000)
+              console.log('[tidal] getAccessToken: expiresAt:', expiresAt, 'isExpired:', isExpired)
               
               if (isExpired) {
                   console.log('[tidal] Token expired or expiring soon.')
@@ -107,7 +126,10 @@ async function getAccessToken() {
 
               accessToken = tokenValue
               tokenExpiresAt = expiresAt
+              console.log('[tidal] getAccessToken: Token loaded successfully!')
               return accessToken
+          } else {
+              console.log('[tidal] getAccessToken: No token or access_token key found in creds')
           }
       } catch (e) {
           console.error('[tidal] Error reading token file:', e.message)

@@ -240,8 +240,13 @@ async function downloadWithTidalDlNg(url, outputDir, options = {}) {
   // Format: "Download skipped, since file exists: '/path/to/file.flac'"
   const skipMatch = stdout.match(/Download skipped, since file exists:\s*'([^']+)'/)
   if (skipMatch) {
-    // Remove newlines that may be inserted due to terminal wrapping
-    const existingPath = skipMatch[1].replace(/\n/g, '')
+    // Terminal line wrapping may insert newlines in the middle of the path
+    // Replace newlines with spaces (since the wrap often happens at word boundaries)
+    // Then normalize multiple spaces to single space
+    const existingPath = skipMatch[1]
+      .replace(/\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
     console.log(`[tidal-dl-ng] tidal-dl-ng says file exists at: ${existingPath}`)
     
     // Verify the file actually exists (it might have been moved/deleted)

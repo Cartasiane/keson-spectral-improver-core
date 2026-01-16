@@ -26,7 +26,9 @@ let tokenExpiresAt = 0
  * Refresh the access token using the refresh token
  */
 async function refreshAccessToken(creds) {
-    if (!creds.refreshToken) return null
+    // Support both 'refreshToken' (SDK) and 'refresh_token' (standard OAuth)
+    const refreshToken = creds.refreshToken || creds.refresh_token
+    if (!refreshToken) return null
     if (!config.TIDAL_CLIENT_ID || !config.TIDAL_CLIENT_SECRET) {
         console.error('[tidal] Cannot refresh token: Missing Client ID/Secret')
         return null
@@ -40,8 +42,7 @@ async function refreshAccessToken(creds) {
         const response = await axios.post('https://auth.tidal.com/v1/oauth2/token', 
             new URLSearchParams({
                 grant_type: 'refresh_token',
-                refresh_token: creds.refreshToken,
-                scope: 'user.read' // Maintain same scope
+                refresh_token: refreshToken
             }), 
             {
                 headers: {
@@ -83,26 +84,29 @@ async function getAccessToken() {
       try {
           const creds = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'))
           
-          if (creds.token) {
+          // Support both 'token' (SDK format) and 'access_token' (standard OAuth format)
+          const tokenValue = creds.token || creds.access_token
+          
+          if (tokenValue) {
               // Check expiry
               // Default buffer of 5 minutes
-              const isExpired = !creds.expires || Date.now() > (creds.expires - 300000)
+              const expiresAt = creds.expires || (creds.expires_in ? Date.now() + (creds.expires_in * 1000) : 0)
+              const isExpired = !expiresAt || Date.now() > (expiresAt - 300000)
               
               if (isExpired) {
                   console.log('[tidal] Token expired or expiring soon.')
                   const newToken = await refreshAccessToken(creds)
                   if (newToken) {
                       accessToken = newToken
-                      tokenExpiresAt = Date.now() + 3600 * 1000 // optimize: parse actual expiry from refresh response if possible in next loop, or strict reliance on file
-                      // Re-read file to get strict expiry if needed, but for now just updating mem cache
+                      tokenExpiresAt = Date.now() + 3600 * 1000
                       return accessToken
                   }
                   console.warn('[tidal] Refresh failed. Please re-login.')
                   return null
               }
 
-              accessToken = creds.token
-              tokenExpiresAt = creds.expires || 0 
+              accessToken = tokenValue
+              tokenExpiresAt = expiresAt
               return accessToken
           }
       } catch (e) {

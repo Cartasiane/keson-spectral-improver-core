@@ -50,9 +50,13 @@ services:
       - SOUNDCLOUD_OAUTH_TOKEN=${SOUNDCLOUD_OAUTH_TOKEN}
       - ENABLE_QUALITY_ANALYSIS=${ENABLE_QUALITY_ANALYSIS:-true}
       - QUALITY_ANALYSIS_DEBUG=${QUALITY_ANALYSIS_DEBUG:-false}
-      # For Portainer/Env usage (paste file content here):
-      # - TIDAL_TOKEN_JSON={"accessToken": "..."}
-      # - TIDAL_SETTINGS_JSON={"quality_audio": "LOSSLESS", ...}
+      # Tidal Credentials via Environment Variables (for Portainer):
+      # - TIDAL_CLIENT_ID=your_client_id
+      # - TIDAL_CLIENT_SECRET=your_client_secret
+      # - TIDAL_TOKEN_JSON={"access_token": "...", "refresh_token": "...", "expires_in": 14400}
+      # tidal-dl-ng specific (for downloading):
+      # - TIDAL_DL_TOKEN_JSON={"token_type": {...}, "access_token": {...}, ...}
+      # - TIDAL_DL_SETTINGS_JSON={"quality_audio": "LOSSLESS", ...}
     ports:
       - "${KESON_PORT:-42069}:3001"
     volumes:
@@ -74,4 +78,3 @@ volumes:
   keson-data:
   keson-downloads:
   tidal-config:
-

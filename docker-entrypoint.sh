@@ -6,14 +6,16 @@ CONFIG_DIR="/root/.config/tidal_dl_ng"
 mkdir -p "$CONFIG_DIR"
 
 # 1. Environment Variables (Portainer friendly)
-if [ -n "$TIDAL_TOKEN_JSON" ]; then
-    echo "Found TIDAL_TOKEN_JSON environment variable, setting up configuration..."
-    echo "$TIDAL_TOKEN_JSON" > "$CONFIG_DIR/token.json"
+# Note: TIDAL_DL_TOKEN_JSON is for tidal-dl-ng tool
+#       TIDAL_TOKEN_JSON is for keson-core (handled in tidal.js, not here)
+if [ -n "$TIDAL_DL_TOKEN_JSON" ]; then
+    echo "Found TIDAL_DL_TOKEN_JSON environment variable, setting up tidal-dl-ng token..."
+    echo "$TIDAL_DL_TOKEN_JSON" > "$CONFIG_DIR/token.json"
 fi
 
-if [ -n "$TIDAL_SETTINGS_JSON" ]; then
-    echo "Found TIDAL_SETTINGS_JSON environment variable, copying..."
-    echo "$TIDAL_SETTINGS_JSON" > "$CONFIG_DIR/settings.json"
+if [ -n "$TIDAL_DL_SETTINGS_JSON" ]; then
+    echo "Found TIDAL_DL_SETTINGS_JSON environment variable, copying tidal-dl-ng settings..."
+    echo "$TIDAL_DL_SETTINGS_JSON" > "$CONFIG_DIR/settings.json"
 fi
 
 # 2. Docker Secrets (Secure fallback)

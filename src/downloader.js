@@ -82,11 +82,11 @@ async function downloadTrack(url, options = {}) {
 async function resolveShortUrl(url) {
   const https = require('https')
   const http = require('http')
-  
+
   return new Promise((resolve, reject) => {
     const protocol = url.startsWith('https') ? https : http
-    
-    const req = protocol.get(url, { 
+
+    const req = protocol.get(url, {
       timeout: 10000,
       headers: { 'User-Agent': 'Mozilla/5.0' }
     }, (res) => {
@@ -101,7 +101,7 @@ async function resolveShortUrl(url) {
       }
       res.destroy()
     })
-    
+
     req.on('error', reject)
     req.on('timeout', () => {
       req.destroy()
@@ -197,17 +197,17 @@ async function downloadWithYtDlp(url, outputDir, options = {}) {
   } catch (err) {
     // If thumbnail embedding failed and we haven't already retried, retry without thumbnail
     const isThumbnailError = err.message && (
-      err.message.includes('thumbnail') || 
+      err.message.includes('thumbnail') ||
       err.message.includes('EmbedThumbnail') ||
       err.message.includes('Postprocessing')
     )
-    
+
     if (withThumbnail && isThumbnailError) {
       console.warn('[yt-dlp] Thumbnail embedding failed, retrying without thumbnail...')
       // Clean up any partial files
       const files = await fsp.readdir(outputDir)
       for (const f of files) {
-        await fsp.unlink(path.join(outputDir, f)).catch(() => {})
+        await fsp.unlink(path.join(outputDir, f)).catch(() => { })
       }
       // Retry without thumbnail
       return downloadWithYtDlp(url, outputDir, { ...options, skipThumbnail: true })
@@ -222,7 +222,7 @@ async function downloadWithYtDlp(url, outputDir, options = {}) {
 async function downloadWithTidalDlNg(url, outputDir, options = {}) {
   // Use configured tidal-dl-ng path or default to PATH
   const tidalPath = config.TIDAL_DL_NG_PATH || 'tidal-dl-ng'
-  
+
   // Resolve short URLs (link.tidal.com) to full URLs
   let resolvedUrl = url
   if (url.includes('link.tidal.com')) {
@@ -230,7 +230,14 @@ async function downloadWithTidalDlNg(url, outputDir, options = {}) {
     resolvedUrl = await resolveShortUrl(url)
     console.log(`[tidal-dl-ng] Resolved to: ${resolvedUrl}`)
   }
-  
+
+  // Strip /u suffix from Tidal URLs (e.g., /track/12345/u -> /track/12345)
+  // tidal-dl-ng doesn't recognize this format
+  if (resolvedUrl.match(/\/track\/\d+\/u$/)) {
+    resolvedUrl = resolvedUrl.replace(/\/u$/, '')
+    console.log(`[tidal-dl-ng] Stripped /u suffix: ${resolvedUrl}`)
+  }
+
   const args = [
     'dl',
     resolvedUrl
@@ -250,20 +257,20 @@ async function downloadWithTidalDlNg(url, outputDir, options = {}) {
   let stderr = ''
 
   try {
-      const result = await spawnCollect(tidalPath, args, { cwd: homeDir })
-      stdout = result.stdout
-      stderr = result.stderr
-      
-      console.log(`[tidal-dl-ng] stdout: ${stdout}`)
-      console.log(`[tidal-dl-ng] stderr: ${stderr}`)
+    const result = await spawnCollect(tidalPath, args, { cwd: homeDir })
+    stdout = result.stdout
+    stderr = result.stderr
+
+    console.log(`[tidal-dl-ng] stdout: ${stdout}`)
+    console.log(`[tidal-dl-ng] stderr: ${stderr}`)
   } catch (err) {
-      console.error(`[tidal-dl-ng] Execution failed: ${err.message}`)
-      console.error(`[tidal-dl-ng] stderr: ${err.stderr}`)
-      throw err;
+    console.error(`[tidal-dl-ng] Execution failed: ${err.message}`)
+    console.error(`[tidal-dl-ng] stderr: ${err.stderr}`)
+    throw err;
   }
 
   let filePath = null
-  
+
   // Check if download was skipped (file already exists)
   // Format: "Download skipped, since file exists: '/path/to/file.flac'"
   const skipMatch = stdout.match(/Download skipped, since file exists:\s*'([^']+)'/)
@@ -276,7 +283,7 @@ async function downloadWithTidalDlNg(url, outputDir, options = {}) {
       .replace(/\s+/g, ' ')
       .trim()
     console.log(`[tidal-dl-ng] tidal-dl-ng says file exists at: ${existingPath}`)
-    
+
     // Verify the file actually exists (it might have been moved/deleted)
     if (fs.existsSync(existingPath)) {
       filePath = existingPath

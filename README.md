@@ -1,26 +1,55 @@
 # Keson Spectral Improver Core
 
-Headless logic (SoundCloud download, quality analysis, IDHS resolution, queue helper, captions/messages) shared by the Telegram bot and GUI.
+The brain of the operation. This package handles the heavy lifting: downloading from SoundCloud, performing spectral analysis to detect fake bitrates, and managing the processing queue. It is used by both the [Telegram Bot](../keson-spectral-improver-telegram) and the [Desktop GUI](../keson-spectral-improver-gui).
 
-## Exports
-- `downloadTrack(url)` -> { tempDir, path, filename, metadata, rateLimited? }
-- `cleanupTempDir(dir)`
-- `fetchPlaylistTracks(url, limit?)`
-- `analyzeTrackQuality(filePath, metadata)`
-- `qualityDebug(...args)`
-- `buildCaption(metadata, qualityInfo)` / `appendQuality`
-- `createTaskQueue(concurrency, maxQueue)`
-- `isIdhsSupportedLink(url)` / `resolveLinkViaIdhs(url)`
-- `utils` (url extraction, formatting helpers)
-- `messages` (user-facing strings)
-- `config` (`validateCoreEnv`, yt-dlp + SC + ffprobe paths)
+## 🧠 What it does
 
-## Env
-- `SOUNDCLOUD_OAUTH_TOKEN` (required)
-- Optional: `YT_DLP_BINARY_PATH`, `YT_DLP_DOWNLOAD_BASE`, `YT_DLP_SKIP_CERT_CHECK`, `FFMPEG_PATH`, `FFPROBE_PATH`, `IDHS_API_BASE_URL`, `IDHS_REQUEST_TIMEOUT_MS`, `ENABLE_QUALITY_ANALYSIS`, `QUALITY_ANALYSIS_DEBUG`.
+- **Smart Downloading**: Fetches tracks from SoundCloud with fallback mechanisms.
+- **Spectral Analysis**: Uses `ffmpeg` and local algorithms to determine the _true_ quality of an audio file, flagging upscales.
+- **Queue Management**: robust task queue for handling large playlists without rate-limiting issues.
 
-## Usage
-```js
-const core = require('keson-spectral-improver-core')
-const { downloadTrack, analyzeTrackQuality, createTaskQueue } = core
+## 🛠 Usage
+
+### As a Library
+
+```javascript
+const core = require("keson-spectral-improver-core");
+
+// Download a track
+const result = await core.downloadTrack("https://soundcloud.com/artist/track");
+
+// Analyze quality
+const quality = await core.analyzeTrackQuality(result.path, result.metadata);
+console.log(`True Bitrate: ${quality.estimated_bitrate}`);
 ```
+
+### Configuration (Environment Variables)
+
+The core requires specific environment variables to function correctly.
+
+| Variable                  | Required | Description                                              |
+| :------------------------ | :------: | :------------------------------------------------------- |
+| `SOUNDCLOUD_OAUTH_TOKEN`  |    ✅    | OAuth token for SoundCloud API access.                   |
+| `YT_DLP_BINARY_PATH`      |    ❌    | Custom path to `yt-dlp` binary.                          |
+| `FFMPEG_PATH`             |    ❌    | Custom path to `ffmpeg`.                                 |
+| `FFPROBE_PATH`            |    ❌    | Custom path to `ffprobe`.                                |
+| `ENABLE_QUALITY_ANALYSIS` |    ❌    | Set to `true` to enable spectral checks (default: true). |
+
+## 🐳 Docker Deployment
+
+You can run the core services (if using the server/bot mode) via Docker.
+
+```bash
+# Build the container
+docker-compose build
+
+# Run in background
+docker-compose up -d
+```
+
+## 📦 API Reference
+
+- `downloadTrack(url)`: Main entry point for fetching audio.
+- `analyzeTrackQuality(filePath, metadata)`: Returns quality score and spectral stats.
+- `createTaskQueue(concurrency)`: Returns a queue instance for managing jobs.
+- `utils`: Helper bundle for URL parsing and string formatting.

@@ -38,16 +38,16 @@ app.use('/files', authMiddleware, (req, res, next) => {
   const decodedPath = decodeURIComponent(req.path)
   console.log(`[files] Request for: ${req.path} -> decoded: ${decodedPath}`)
   console.log(`[files] DOWNLOADS_DIR: ${DOWNLOADS_DIR}`)
-  
+
   const filePath = path.join(DOWNLOADS_DIR, decodedPath)
   const resolved = path.resolve(filePath)
   console.log(`[files] Resolved path: ${resolved}`)
-  
+
   // Path traversal protection
   if (!resolved.startsWith(path.resolve(DOWNLOADS_DIR))) {
     return res.status(403).json({ error: 'Forbidden' })
   }
-  
+
   // Check if file exists
   if (!fs.existsSync(resolved)) {
     console.log(`[files] File NOT found at: ${resolved}`)
@@ -60,9 +60,9 @@ app.use('/files', authMiddleware, (req, res, next) => {
     }
     return res.status(404).json({ error: 'File not found' })
   }
-  
+
   console.log(`[files] File found, sending...`)
-  
+
   // Send file, then delete it after transfer completes
   res.sendFile(resolved, (err) => {
     if (err) {
@@ -115,11 +115,11 @@ app.get('/auth/validate', authMiddleware, (req, res) => {
 // ---- Client Registration ----
 app.post('/register', (req, res) => {
   const { invite_code, device_name } = req.body
-  
+
   if (!invite_code) {
     return res.status(400).json({ error: 'Missing invite_code' })
   }
-  
+
   try {
     const token = registerClient(invite_code, { device_name })
     res.json({
@@ -128,7 +128,7 @@ app.post('/register', (req, res) => {
     })
   } catch (err) {
     if (err.message === 'INVALID_INVITE_CODE') {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Invalid invite code',
         code: 'INVALID_INVITE_CODE'
       })
@@ -225,7 +225,7 @@ async function handleTrackSearch(req, res) {
   // Support both GET (query params) and POST (JSON body)
   const query = req.body?.query || req.query?.query
   const providedMetadata = req.body?.metadata
-  
+
   const TIDAL_THRESHOLD = config.TIDAL_MATCH_THRESHOLD
   const SOUNDCLOUD_THRESHOLD = config.SOUNDCLOUD_MATCH_THRESHOLD
 
@@ -330,6 +330,84 @@ app.post('/search/track', authMiddleware, handleTrackSearch)
 // Protected: requires valid client token
 app.get('/search/track', authMiddleware, handleTrackSearch)
 
+// ---- Multi-Result Search Endpoint (for Spotlight-style UI) ----
+// Returns multiple results from both Tidal and SoundCloud
+// Protected: requires valid client token
+app.post('/search/multi', authMiddleware, async (req, res) => {
+  const { query } = req.body
+  const MAX_RESULTS_PER_SOURCE = 5
+
+  if (!query || query.trim().length < 2) {
+    return res.status(400).json({ error: 'Query must be at least 2 characters' })
+  }
+
+  console.log(`[search/multi] Query: "${query}"`)
+
+  try {
+    // Parse query as "Artist - Title" or just use as title
+    let metadata
+    const parts = query.split(' - ')
+    if (parts.length >= 2) {
+      metadata = { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() }
+    } else {
+      metadata = { title: query.trim() }
+    }
+
+    const results = []
+
+    // Search Tidal
+    try {
+      const tidalCandidates = await searchTracks(metadata)
+      const tidalResults = tidalCandidates.slice(0, MAX_RESULTS_PER_SOURCE).map(c => ({
+        source: 'tidal',
+        url: c.url,
+        title: c.title || 'Unknown',
+        artist: c.artist || 'Unknown',
+        duration: c.duration || null,
+        cover_url: c.cover_url || null,
+        score: scoreMatch(metadata, c)
+      }))
+      results.push(...tidalResults)
+      console.log(`[search/multi] Tidal: ${tidalResults.length} results`)
+    } catch (e) {
+      console.warn('[search/multi] Tidal search failed:', e.message)
+    }
+
+    // Search SoundCloud
+    try {
+      const scCandidates = await searchSoundCloud(metadata)
+      const scResults = scCandidates.slice(0, MAX_RESULTS_PER_SOURCE).map(c => ({
+        source: 'soundcloud',
+        url: c.url,
+        title: c.title || 'Unknown',
+        artist: c.artist || c.uploader || 'Unknown',
+        duration: c.duration || null,
+        cover_url: c.cover_url || c.thumbnail || null,
+        score: scoreMatch(metadata, c)
+      }))
+      results.push(...scResults)
+      console.log(`[search/multi] SoundCloud: ${scResults.length} results`)
+    } catch (e) {
+      console.warn('[search/multi] SoundCloud search failed:', e.message)
+    }
+
+    // Sort by score (best matches first)
+    results.sort((a, b) => b.score - a.score)
+
+    console.log(`[search/multi] Total: ${results.length} results`)
+
+    res.json({
+      success: true,
+      query,
+      results
+    })
+
+  } catch (error) {
+    console.error('[search/multi] Failed:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // ---- Legacy Tidal Search Endpoint (backwards compatibility) ----
 // Protected: requires valid client token
 app.get('/search/tidal', authMiddleware, async (req, res) => {
@@ -343,7 +421,7 @@ app.get('/search/tidal', authMiddleware, async (req, res) => {
 
   try {
     const trackUrl = await searchTrack(query)
-    
+
     if (trackUrl) {
       console.log(`[search/tidal] Found: ${trackUrl}`)
       res.json({
@@ -485,7 +563,7 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Keson Core Server running on port ${PORT}`)
   console.log(`IDHS API: ${config.IDHS_API_BASE_URL}`)
   console.log(`Quality analysis: ${config.ENABLE_QUALITY_ANALYSIS ? 'enabled' : 'disabled'}`)
-  
+
   // Check Tidal auth status
   await checkTidalAuth()
 })
@@ -496,11 +574,11 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
 async function checkTidalAuth() {
   const { spawnCollect } = require('./utils')
   const tidalPath = config.TIDAL_DL_NG_PATH || 'tidal-dl-ng'
-  
+
   try {
     // Run tidal-dl-ng with a dummy command to check login status
     const result = await spawnCollect(tidalPath, ['cfg', 'show'], { timeout: 10000 })
-    
+
     if (result.stdout.includes('logged in') || result.stdout.includes('token')) {
       console.log('═══════════════════════════════════════════════════════════')
       console.log('  ✅ TIDAL: Authenticated')

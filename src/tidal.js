@@ -12,17 +12,17 @@ console.log('[tidal] TOKEN_FILE path:', TOKEN_FILE)
 
 // Check for tokens injected via ENV (e.g. from Portainer) and write to file
 if (process.env.TIDAL_TOKEN_JSON) {
-    console.log('[tidal] Found TIDAL_TOKEN_JSON in environment (length:', process.env.TIDAL_TOKEN_JSON.length, ')')
-    try {
-        const tokens = JSON.parse(process.env.TIDAL_TOKEN_JSON)
-        console.log('[tidal] Parsed TIDAL_TOKEN_JSON keys:', Object.keys(tokens))
-        fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2))
-        console.log('[tidal] Token file written successfully.')
-    } catch (e) {
-        console.error('[tidal] Failed to parse TIDAL_TOKEN_JSON from env:', e.message)
-    }
+  console.log('[tidal] Found TIDAL_TOKEN_JSON in environment (length:', process.env.TIDAL_TOKEN_JSON.length, ')')
+  try {
+    const tokens = JSON.parse(process.env.TIDAL_TOKEN_JSON)
+    console.log('[tidal] Parsed TIDAL_TOKEN_JSON keys:', Object.keys(tokens))
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2))
+    console.log('[tidal] Token file written successfully.')
+  } catch (e) {
+    console.error('[tidal] Failed to parse TIDAL_TOKEN_JSON from env:', e.message)
+  }
 } else {
-    console.log('[tidal] TIDAL_TOKEN_JSON not set in environment.')
+  console.log('[tidal] TIDAL_TOKEN_JSON not set in environment.')
 }
 
 // Debug: Check if token file exists after potential ENV write
@@ -35,49 +35,49 @@ let tokenExpiresAt = 0
  * Refresh the access token using the refresh token
  */
 async function refreshAccessToken(creds) {
-    // Support both 'refreshToken' (SDK) and 'refresh_token' (standard OAuth)
-    const refreshToken = creds.refreshToken || creds.refresh_token
-    if (!refreshToken) return null
-    if (!config.TIDAL_CLIENT_ID || !config.TIDAL_CLIENT_SECRET) {
-        console.error('[tidal] Cannot refresh token: Missing Client ID/Secret')
-        return null
-    }
+  // Support both 'refreshToken' (SDK) and 'refresh_token' (standard OAuth)
+  const refreshToken = creds.refreshToken || creds.refresh_token
+  if (!refreshToken) return null
+  if (!config.TIDAL_CLIENT_ID || !config.TIDAL_CLIENT_SECRET) {
+    console.error('[tidal] Cannot refresh token: Missing Client ID/Secret')
+    return null
+  }
 
-    try {
-        console.log('[tidal] Refreshing access token...')
-        // Use standard OAuth 2.0 token endpoint for Tidal
-        const authString = Buffer.from(`${config.TIDAL_CLIENT_ID}:${config.TIDAL_CLIENT_SECRET}`).toString('base64')
-        
-        const response = await axios.post('https://auth.tidal.com/v1/oauth2/token', 
-            new URLSearchParams({
-                grant_type: 'refresh_token',
-                refresh_token: refreshToken
-            }), 
-            {
-                headers: {
-                    'Authorization': `Basic ${authString}`,
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                }
-            }
-        )
+  try {
+    console.log('[tidal] Refreshing access token...')
+    // Use standard OAuth 2.0 token endpoint for Tidal
+    const authString = Buffer.from(`${config.TIDAL_CLIENT_ID}:${config.TIDAL_CLIENT_SECRET}`).toString('base64')
 
-        const newTokens = response.data
-        // Standardize response to match what we save
-        const updatedCreds = {
-            ...creds,
-            token: newTokens.access_token,
-            refreshToken: newTokens.refresh_token || creds.refreshToken, // Sometimes refresh token rotates
-            expires: Date.now() + (newTokens.expires_in * 1000)
+    const response = await axios.post('https://auth.tidal.com/v1/oauth2/token',
+      new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken
+      }),
+      {
+        headers: {
+          'Authorization': `Basic ${authString}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
         }
+      }
+    )
 
-        fs.writeFileSync(TOKEN_FILE, JSON.stringify(updatedCreds, null, 2))
-        console.log('[tidal] Token refreshed and saved.')
-        return updatedCreds.token
-
-    } catch (e) {
-        console.error('[tidal] Token refresh failed:', e.response?.data || e.message)
-        return null
+    const newTokens = response.data
+    // Standardize response to match what we save
+    const updatedCreds = {
+      ...creds,
+      token: newTokens.access_token,
+      refreshToken: newTokens.refresh_token || creds.refreshToken, // Sometimes refresh token rotates
+      expires: Date.now() + (newTokens.expires_in * 1000)
     }
+
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(updatedCreds, null, 2))
+    console.log('[tidal] Token refreshed and saved.')
+    return updatedCreds.token
+
+  } catch (e) {
+    console.error('[tidal] Token refresh failed:', e.response?.data || e.message)
+    return null
+  }
 }
 
 /**
@@ -92,50 +92,50 @@ async function getAccessToken() {
   // Load from file if not loaded
   console.log('[tidal] getAccessToken: Checking TOKEN_FILE:', TOKEN_FILE)
   console.log('[tidal] getAccessToken: File exists:', fs.existsSync(TOKEN_FILE))
-  
-  if (fs.existsSync(TOKEN_FILE)) {
-      try {
-          const fileContent = fs.readFileSync(TOKEN_FILE, 'utf8')
-          console.log('[tidal] getAccessToken: File content length:', fileContent.length)
-          
-          const creds = JSON.parse(fileContent)
-          console.log('[tidal] getAccessToken: Parsed keys:', Object.keys(creds))
-          
-          // Support both 'token' (SDK format) and 'access_token' (standard OAuth format)
-          const tokenValue = creds.token || creds.access_token
-          console.log('[tidal] getAccessToken: tokenValue found:', !!tokenValue, tokenValue ? `(${tokenValue.substring(0, 20)}...)` : '')
-          
-          if (tokenValue) {
-              // Check expiry
-              // Default buffer of 5 minutes
-              const expiresAt = creds.expires || (creds.expires_in ? Date.now() + (creds.expires_in * 1000) : 0)
-              const isExpired = !expiresAt || Date.now() > (expiresAt - 300000)
-              console.log('[tidal] getAccessToken: expiresAt:', expiresAt, 'isExpired:', isExpired)
-              
-              if (isExpired) {
-                  console.log('[tidal] Token expired or expiring soon.')
-                  const newToken = await refreshAccessToken(creds)
-                  if (newToken) {
-                      accessToken = newToken
-                      tokenExpiresAt = Date.now() + 3600 * 1000
-                      return accessToken
-                  }
-                  console.warn('[tidal] Refresh failed. Please re-login.')
-                  return null
-              }
 
-              accessToken = tokenValue
-              tokenExpiresAt = expiresAt
-              console.log('[tidal] getAccessToken: Token loaded successfully!')
-              return accessToken
-          } else {
-              console.log('[tidal] getAccessToken: No token or access_token key found in creds')
+  if (fs.existsSync(TOKEN_FILE)) {
+    try {
+      const fileContent = fs.readFileSync(TOKEN_FILE, 'utf8')
+      console.log('[tidal] getAccessToken: File content length:', fileContent.length)
+
+      const creds = JSON.parse(fileContent)
+      console.log('[tidal] getAccessToken: Parsed keys:', Object.keys(creds))
+
+      // Support both 'token' (SDK format) and 'access_token' (standard OAuth format)
+      const tokenValue = creds.token || creds.access_token
+      console.log('[tidal] getAccessToken: tokenValue found:', !!tokenValue, tokenValue ? `(${tokenValue.substring(0, 20)}...)` : '')
+
+      if (tokenValue) {
+        // Check expiry
+        // Default buffer of 5 minutes
+        const expiresAt = creds.expires || (creds.expires_in ? Date.now() + (creds.expires_in * 1000) : 0)
+        const isExpired = !expiresAt || Date.now() > (expiresAt - 300000)
+        console.log('[tidal] getAccessToken: expiresAt:', expiresAt, 'isExpired:', isExpired)
+
+        if (isExpired) {
+          console.log('[tidal] Token expired or expiring soon.')
+          const newToken = await refreshAccessToken(creds)
+          if (newToken) {
+            accessToken = newToken
+            tokenExpiresAt = Date.now() + 3600 * 1000
+            return accessToken
           }
-      } catch (e) {
-          console.error('[tidal] Error reading token file:', e.message)
+          console.warn('[tidal] Refresh failed. Please re-login.')
+          return null
+        }
+
+        accessToken = tokenValue
+        tokenExpiresAt = expiresAt
+        console.log('[tidal] getAccessToken: Token loaded successfully!')
+        return accessToken
+      } else {
+        console.log('[tidal] getAccessToken: No token or access_token key found in creds')
       }
+    } catch (e) {
+      console.error('[tidal] Error reading token file:', e.message)
+    }
   }
-  
+
   console.log('[tidal] No valid user token found. Run `npm run auth-tidal` to login.')
   return null
 }
@@ -147,16 +147,16 @@ async function getAccessToken() {
  */
 async function searchByIsrc(isrc) {
   if (!isrc) return []
-  
+
   try {
     const token = await getAccessToken()
     if (!token) return []
 
     const countryCode = config.TIDAL_COUNTRY_CODE
     const searchUrl = `https://openapi.tidal.com/v2/tracks`
-    
+
     console.log(`[tidal] ISRC search: ${isrc}`)
-    
+
     const response = await axios.get(searchUrl, {
       params: {
         'filter[isrc]': isrc,
@@ -170,7 +170,7 @@ async function searchByIsrc(isrc) {
 
     const tracks = response.data?.data || []
     return tracks.map(parseTrackData)
-    
+
   } catch (error) {
     console.warn('[tidal] ISRC search failed:', error.message)
     return []
@@ -192,7 +192,7 @@ async function searchTracks(metadata) {
       return isrcResults
     }
   }
-  
+
   // Fall back to text search
   const query = buildQuery(metadata)
   if (!query) {
@@ -207,13 +207,13 @@ async function searchTracks(metadata) {
     const countryCode = config.TIDAL_COUNTRY_CODE
     const encodedQuery = encodeURIComponent(query)
     const searchUrl = `https://openapi.tidal.com/v2/searchResults/${encodedQuery}`
-    
+
     console.log(`[tidal] Searching: ${query}`)
-    
+
     const response = await axios.get(searchUrl, {
       params: {
         countryCode,
-        include: 'tracks.artists,tracks.albums'
+        include: 'tracks.artists,tracks.albums,tracks.albums.coverArt'
       },
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -227,15 +227,17 @@ async function searchTracks(metadata) {
       .filter(i => i.type === 'tracks')
       .slice(0, 10) // Top 10 results
       .map(track => parseTrackData(track, included))
-    
+
     console.log(`[tidal] Found ${tracks.length} candidates`)
-    
+
     // Debug: Check included types
     const types = new Set(included.map(i => i.type))
     console.log(`[tidal] Included types: ${Array.from(types).join(', ')}`)
-    
+
+
+
     return tracks
-    
+
   } catch (error) {
     if (error.response?.status === 401) {
       console.warn('[tidal] Auth failed (401). Token may be expired.')
@@ -251,7 +253,7 @@ async function searchTracks(metadata) {
  */
 function parseTrackData(track, included = []) {
   const attrs = track.attributes || {}
-  
+
   // Parse duration from ISO 8601 (PT3M35S) to seconds
   let duration = null
   if (attrs.duration) {
@@ -265,11 +267,11 @@ function parseTrackData(track, included = []) {
 
   // extract artist name
   let artistName = 'Unknown'
-  
+
   // 1. Try direct attribute
   if (attrs.artistName) {
     artistName = attrs.artistName
-  } 
+  }
   // 2. Try nested artists array in attributes
   else if (attrs.artists && attrs.artists.length > 0) {
     artistName = attrs.artists[0].name
@@ -278,7 +280,7 @@ function parseTrackData(track, included = []) {
   else if (track.relationships && track.relationships.artists && track.relationships.artists.data && track.relationships.artists.data.length > 0) {
     const artistId = track.relationships.artists.data[0].id
     const artistObj = included.find(i => i.type === 'artists' && i.id === artistId)
-    
+
     if (artistObj && artistObj.attributes) {
       artistName = artistObj.attributes.name
     }
@@ -287,34 +289,57 @@ function parseTrackData(track, included = []) {
   // Extract Cover Art
   let coverUrl = null
   let albumId = null
-  
+
   // Check singular 'album' or plural 'albums'
   const rels = track.relationships || {}
   const albumRel = rels.album || rels.albums
-  
+
   if (albumRel?.data) {
-     if (Array.isArray(albumRel.data) && albumRel.data.length > 0) {
-        albumId = albumRel.data[0].id
-     } else if (albumRel.data.id) {
-        albumId = albumRel.data.id
-     }
+    if (Array.isArray(albumRel.data) && albumRel.data.length > 0) {
+      albumId = albumRel.data[0].id
+    } else if (albumRel.data.id) {
+      albumId = albumRel.data.id
+    }
   }
-  
+
   if (albumId && included.length > 0) {
-     const albumObj = included.find(i => i.type === 'albums' && i.id === albumId)
-     if (albumObj) {
-        // Try 'cover' or 'imageCover' (Tidal API varies)
-        const coverUuid = albumObj.attributes?.cover || albumObj.attributes?.imageCover
-        if (coverUuid) {
-            coverUrl = `https://resources.tidal.com/images/${coverUuid.replace(/-/g, '/')}/640x640.jpg`
-        } else {
-             console.log(`[tidal] Album found (${albumId}) but no cover attribute. Available attrs:`, Object.keys(albumObj.attributes || {}))
+    const albumObj = included.find(i => i.type === 'albums' && i.id === albumId)
+    if (albumObj) {
+      // Try direct attributes first (legacy/other API versions)
+      const coverUuid = albumObj.attributes?.cover || albumObj.attributes?.imageCover
+      if (coverUuid) {
+        coverUrl = `https://resources.tidal.com/images/${coverUuid.replace(/-/g, '/')}/640x640.jpg`
+      } else if (albumObj.relationships?.coverArt?.data) {
+        // New logic: Follow coverArt relationship
+        let artId = null
+        const artData = albumObj.relationships.coverArt.data
+
+        if (Array.isArray(artData) && artData.length > 0) {
+          artId = artData[0].id
+        } else if (artData.id) {
+          artId = artData.id
         }
-     } else {
-        console.log(`[tidal] Album ID ${albumId} not found in included`)
-     }
+
+        if (artId) {
+          const artObj = included.find(i => i.type === 'artworks' && i.id === artId)
+          if (artObj && artObj.attributes?.imageLinks) {
+            // Find 640x640 or fallback to largest/first
+            const link = artObj.attributes.imageLinks.find(l => l.meta.width === 640)
+              || artObj.attributes.imageLinks.find(l => l.meta.width > 600)
+              || artObj.attributes.imageLinks[0]
+            if (link) {
+              coverUrl = link.href
+            }
+          }
+        }
+      } else {
+        // console.log(`[tidal] Album found (${albumId}) but no cover attribute.`)
+      }
+    } else {
+      console.log(`[tidal] Album ID ${albumId} not found in included`)
+    }
   } else {
-      console.log(`[tidal] No album relationship found for track ${track.id}`)
+    console.log(`[tidal] No album relationship found for track ${track.id}`)
   }
 
   return {
@@ -333,15 +358,15 @@ function parseTrackData(track, included = []) {
  */
 function buildQuery(metadata) {
   const parts = []
-  
+
   if (metadata.artist) {
     parts.push(cleanForSearch(metadata.artist))
   }
-  
+
   if (metadata.title) {
     parts.push(cleanForSearch(metadata.title))
   }
-  
+
   return parts.join(' ')
 }
 
@@ -350,7 +375,7 @@ function buildQuery(metadata) {
  */
 function cleanForSearch(str) {
   if (!str) return ''
-  
+
   return str
     .replace(/\s*\(.*?\)\s*/g, ' ')
     .replace(/\s*\[.*?\]\s*/g, ' ')
@@ -366,18 +391,18 @@ function cleanForSearch(str) {
  * Returns first match URL or null
  */
 async function searchTrack(query) {
-  const metadata = typeof query === 'string' 
+  const metadata = typeof query === 'string'
     ? { title: query }
     : query
-    
+
   const results = await searchTracks(metadata)
-  
+
   if (results.length > 0) {
     const best = results[0]
     console.log(`[tidal] Found match: "${best.title}" (${best.url})`)
     return best.url
   }
-  
+
   console.log(`[tidal] No match found`)
   return null
 }

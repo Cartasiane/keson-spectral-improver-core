@@ -321,23 +321,16 @@ function parseTrackData(track, included = []) {
         }
 
         if (artId) {
-          console.log(`[tidal-debug] Track ${track.id}: Found artId ${artId} for album ${albumId}`);
           const artObj = included.find(i => i.type === 'artworks' && i.id === artId)
 
-          if (!artObj) {
-            console.log(`[tidal-debug] Track ${track.id}: Artwork object NOT found in included resources.`);
-          } else {
-            console.log(`[tidal-debug] Track ${track.id}: Artwork object found. Has imageLinks? ${!!artObj.attributes?.imageLinks}`);
-            if (!artObj.attributes?.imageLinks) {
-              console.log(`[tidal-debug] FULL ART OBJ:`, JSON.stringify(artObj, null, 2));
-            } else {
-              console.log(`[tidal-debug] Track ${track.id}: Image links count: ${artObj.attributes.imageLinks.length}`);
-            }
-          } if (artObj && artObj.attributes?.imageLinks) {
+          // Support both 'imageLinks' and 'files' (Tidal API variations)
+          const links = artObj?.attributes?.imageLinks || artObj?.attributes?.files
+
+          if (links && Array.isArray(links)) {
             // Find 640x640 or fallback to largest/first
-            const link = artObj.attributes.imageLinks.find(l => l.meta.width === 640)
-              || artObj.attributes.imageLinks.find(l => l.meta.width > 600)
-              || artObj.attributes.imageLinks[0]
+            const link = links.find(l => l.meta.width === 640)
+              || links.find(l => l.meta.width > 600)
+              || links[0]
             if (link) {
               coverUrl = link.href
             }

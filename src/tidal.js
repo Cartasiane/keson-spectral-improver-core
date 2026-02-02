@@ -328,12 +328,12 @@ function parseTrackData(track, included = []) {
             console.log(`[tidal-debug] Track ${track.id}: Artwork object NOT found in included resources.`);
           } else {
             console.log(`[tidal-debug] Track ${track.id}: Artwork object found. Has imageLinks? ${!!artObj.attributes?.imageLinks}`);
-            if (artObj.attributes?.imageLinks) {
+            if (!artObj.attributes?.imageLinks) {
+              console.log(`[tidal-debug] FULL ART OBJ:`, JSON.stringify(artObj, null, 2));
+            } else {
               console.log(`[tidal-debug] Track ${track.id}: Image links count: ${artObj.attributes.imageLinks.length}`);
             }
-          }
-
-          if (artObj && artObj.attributes?.imageLinks) {
+          } if (artObj && artObj.attributes?.imageLinks) {
             // Find 640x640 or fallback to largest/first
             const link = artObj.attributes.imageLinks.find(l => l.meta.width === 640)
               || artObj.attributes.imageLinks.find(l => l.meta.width > 600)

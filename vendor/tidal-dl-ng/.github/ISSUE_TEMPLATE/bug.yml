@@ -1,0 +1,62 @@
+name: Bug Report
+description: File a bug report.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! You must use a clear title for this bug.
+  - type: checkboxes
+    id: search-done
+    attributes:
+      label: You must use the search before you create an issue!
+      description: "**Search [here](https://github.com/exislow/tidal-dl-ng/issues?q=is%3Aissue+is%3Aopen%2Cclosed).** Otherwise this issue gets closed without any comment. Please keep in mind that everyone's time is very precious."
+      options:
+        - label: I did use the search, I promise!
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Use three sentences (!) or more, otherwise your report gets rejected. Provide all necessary information to be able to **reproduce** (!) this bug, for instance, **links** and exact names to your items you tried to download, logs and images of the error, and the command you have used. If you do not this issue will be rejected and closed.
+    validations:
+      required: true
+  - type: input
+    id: version-app
+    attributes:
+      label: Version App
+      description: What version of our software are you running?
+      placeholder: vX.Y.Z
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: What operating system do you use?
+      multiple: false
+      options:
+        - macOS
+        - Linux
+        - Windows
+  - type: input
+    id: version-os
+    attributes:
+      label: Version OS
+      description: What is the version of your operating system?
+      placeholder: Ubuntu 24.04.1 LTS / macOS 15.2 / Windows 10 22H2
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks. No logs? Issue will be rejected and closed.
+      render: shell
+  - type: textarea
+    id: config
+    attributes:
+      label: Your settings
+      description: Please copy and paste your settings from `~/.config/tidal_dl_ng/settings.json` (macOS & Linux) / `%HOMEPATH%\.config\tidal_dl_ng\settings.json` (Windows). This will be automatically formatted into code, so no need for backticks.
+      render: json
+    validations:
+      required: true

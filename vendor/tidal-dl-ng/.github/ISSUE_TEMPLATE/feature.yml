@@ -1,0 +1,48 @@
+name: Feature Request
+description: File a feature request.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We appreciate your feedback on how to improve this project. Please be sure to include as much details & any images if possible! Otherwise this issue gets rejected and closed.
+  - type: checkboxes
+    id: search-done
+    attributes:
+      label: You must use the search before you create an issue!
+      description: "**Search [here](https://github.com/exislow/tidal-dl-ng/issues?q=is%3Aissue+is%3Aopen%2Cclosed).** Otherwise this issue gets closed without any comment. Please keep in mind that everyone's time is very precious."
+      options:
+        - label: I did use the search, I promise!
+  - type: textarea
+    id: situation
+    attributes:
+      label: Current Situation
+      description: Describe the current situation, which is lacking of something you like to have.
+      placeholder: Write at least three sentences (!) and be as precise as possible.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggestion / Feature Request
+      description: Describe the feature(s) you would like to see added.
+      placeholder: Write three sentences (!) or more and be as precise as possible.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: What operating system do you use?
+      multiple: false
+      options:
+        - macOS
+        - Linux
+        - Windows
+  - type: input
+    id: version-os
+    attributes:
+      label: Version OS
+      description: What is the version of your operating system?
+      placeholder: Ubuntu 24.04.1 LTS / macOS 15.2 / Windows 10 22H2
+    validations:
+      required: true

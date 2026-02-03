@@ -20,10 +20,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Copy vendored packages
+COPY vendor/ ./vendor/
+
 # Install yt-dlp and tidal-dl-ng via pipx
 RUN pipx install yt-dlp && \
     pipx inject yt-dlp mutagen && \
-    pipx install tidal-dl-ng && \
+    pipx install /app/vendor/tidal-dl-ng && \
     pipx ensurepath
 
 # Add pipx bin to PATH

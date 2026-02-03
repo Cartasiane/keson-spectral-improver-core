@@ -1,0 +1,174 @@
+name: release-or-test-build
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+on:
+  #  release:
+  #    types: [published]
+  #    branches: [master]
+  push:
+    tags:
+      - "v*.*.*"
+    branches:
+      - "test-build"
+
+env:
+  ASSET_EXTENSION: ".zip"
+  OUT_NAME_FILE: "TIDAL-Downloader-NG"
+  ARCH_MACOS_X64: "macos-x64"
+  ARCH_MACOS_ARM64: "macos-arm64"
+  ARCH_LINUX_X64: "linux-x64"
+  ARCH_LINUX_ARM64: "linux-arm64"
+  ARCH_WINDOWS_X64: "windows-x64"
+  ARCH_WINDOWS_ARM64: "windows-arm"
+
+jobs:
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Set up the environment
+        uses: ./.github/actions/setup-poetry-env
+      - name: Export tag
+        id: vars
+        run: echo tag=${GITHUB_REF#refs/*/} >> $GITHUB_OUTPUT
+      - name: Build and publish (PyPi)
+        run: |
+          source .venv/bin/activate
+          poetry version $RELEASE_VERSION
+          make build-and-publish
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+          RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
+          POETRY_REQUESTS_TIMEOUT: 120
+      - name: GitHub Release -- Create
+        id: release_create
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  deploy-docs:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: publish
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Set up the environment
+        uses: ./.github/actions/setup-poetry-env
+      - name: Deploy documentation
+        run: poetry run mkdocs gh-deploy --force
+  compute:
+    # Workaround to be able to use variables in matrix.
+    # See: https://stackoverflow.com/questions/74072206/github-actions-use-variables-in-matrix-definition
+    runs-on: ubuntu-24.04
+    outputs:
+      ASSET_EXTENSION: ${{ env.ASSET_EXTENSION }}
+      OUT_NAME_FILE: ${{ env.OUT_NAME_FILE }}
+      ARCH_MACOS_X64: ${{ env.ARCH_MACOS_X64 }}
+      ARCH_MACOS_ARM64: ${{ env.ARCH_MACOS_ARM64 }}
+      ARCH_LINUX_X64: ${{ env.ARCH_LINUX_X64 }}
+      ARCH_LINUX_ARM64: ${{ env.ARCH_LINUX_ARM64 }}
+      ARCH_WINDOWS_X64: ${{ env.ARCH_WINDOWS_X64 }}
+      ARCH_WINDOWS_ARM64: ${{ env.ARCH_WINDOWS_ARM64 }}
+    steps:
+      - name: Compute outputs
+        run: |
+          echo "ASSET_EXTENSION=${{ env.ASSET_EXTENSION }}" >> $GITHUB_OUTPUT
+          echo "OUT_NAME_FILE=${{ env.OUT_NAME_FILE }}" >> $GITHUB_OUTPUT
+          echo "ARCH_MACOS_X64=${{ env.ARCH_MACOS_X64 }}" >> $GITHUB_OUTPUT
+          echo "ARCH_MACOS_ARM64=${{ env.ARCH_MACOS_ARM64 }}" >> $GITHUB_OUTPUT
+          echo "ARCH_LINUX_X64=${{ env.ARCH_LINUX_X64 }}" >> $GITHUB_OUTPUT
+          echo "ARCH_LINUX_ARM64=${{ env.ARCH_LINUX_ARM64 }}" >> $GITHUB_OUTPUT
+          echo "ARCH_WINDOWS_X64=${{ env.ARCH_WINDOWS_X64 }}" >> $GITHUB_OUTPUT
+          echo "ARCH_WINDOWS_ARM64=${{ env.ARCH_WINDOWS_ARM64 }}" >> $GITHUB_OUTPUT
+  build-gui-and-upload-assets:
+    needs: ["compute"]
+    if: always() && needs.compute.result == 'success' && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/test-build')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: "macos-15-intel"
+            TARGET: "macos-15-intel"
+            OS_ARCH: ${{needs.compute.outputs.ARCH_MACOS_X64}}
+            CMD_BUILD: >
+              brew install create-dmg &&
+              source $VENV &&
+              poetry run make gui-macos-dmg APP_NAME=${{needs.compute.outputs.OUT_NAME_FILE}} &&
+              cd dist &&
+              zip -r ${{needs.compute.outputs.OUT_NAME_FILE}}_${{needs.compute.outputs.ARCH_MACOS_X64}}${{needs.compute.outputs.ASSET_EXTENSION}} ${{needs.compute.outputs.OUT_NAME_FILE}}.dmg -x "*.DS_Store" &&
+              cd ..
+          - os: "macos-14"
+            TARGET: "macos-14 M1"
+            OS_ARCH: ${{needs.compute.outputs.ARCH_MACOS_ARM64}}
+            CMD_BUILD: >
+              brew install create-dmg &&
+              source $VENV &&
+              poetry run make gui-macos-dmg APP_NAME=${{needs.compute.outputs.OUT_NAME_FILE}} &&
+              cd dist &&
+              zip -r ${{needs.compute.outputs.OUT_NAME_FILE}}_${{needs.compute.outputs.ARCH_MACOS_ARM64}}${{needs.compute.outputs.ASSET_EXTENSION}} ${{needs.compute.outputs.OUT_NAME_FILE}}.dmg -x "*.DS_Store" &&
+              cd ..
+          - os: "ubuntu-24.04"
+            TARGET: "ubuntu-22.04"
+            OS_ARCH: ${{needs.compute.outputs.ARCH_LINUX_X64}}
+            CMD_BUILD: >
+              source $VENV &&
+              poetry run make gui-linux APP_NAME=${{needs.compute.outputs.OUT_NAME_FILE}} &&
+              cd dist &&
+              zip -r ${{needs.compute.outputs.OUT_NAME_FILE}}_${{needs.compute.outputs.ARCH_LINUX_X64}}${{needs.compute.outputs.ASSET_EXTENSION}} ${{needs.compute.outputs.OUT_NAME_FILE}} &&
+              cd ..
+          - os: "ubuntu-24.04-arm"
+            TARGET: "ubuntu-22.04-arm"
+            OS_ARCH: ${{needs.compute.outputs.ARCH_LINUX_ARM64}}
+            CMD_BUILD: >
+              source $VENV &&
+              poetry run make gui-linux APP_NAME=${{needs.compute.outputs.OUT_NAME_FILE}} &&
+              cd dist &&
+              zip -r ${{needs.compute.outputs.OUT_NAME_FILE}}_${{needs.compute.outputs.ARCH_LINUX_ARM64}}${{needs.compute.outputs.ASSET_EXTENSION}} ${{needs.compute.outputs.OUT_NAME_FILE}} &&
+              cd ..
+          - os: "windows-2022"
+            TARGET: "windows-2022"
+            OS_ARCH: ${{needs.compute.outputs.ARCH_WINDOWS_X64}}
+            CMD_BUILD: >
+              choco install zip make -y &&
+              source $VENV &&
+              poetry run make gui-windows APP_NAME=${{needs.compute.outputs.OUT_NAME_FILE}} &&
+              cd dist &&
+              zip -r ${{needs.compute.outputs.OUT_NAME_FILE}}_${{needs.compute.outputs.ARCH_WINDOWS_X64}}${{needs.compute.outputs.ASSET_EXTENSION}} ${{needs.compute.outputs.OUT_NAME_FILE}} &&
+              cd ..
+          - os: "windows-11-arm"
+            TARGET: "windows-11-arm"
+            OS_ARCH: ${{needs.compute.outputs.ARCH_WINDOWS_ARM64}}
+            CMD_BUILD: >
+              choco install zip make -y &&
+              source $VENV &&
+              poetry run make gui-windows APP_NAME=${{needs.compute.outputs.OUT_NAME_FILE}} &&
+              cd dist &&
+              zip -r ${{needs.compute.outputs.OUT_NAME_FILE}}_${{needs.compute.outputs.ARCH_WINDOWS_ARM64}}${{needs.compute.outputs.ASSET_EXTENSION}} ${{needs.compute.outputs.OUT_NAME_FILE}} &&
+              cd ..
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Set up the environment
+        uses: ./.github/actions/setup-poetry-env
+      - name: Build with pyinstaller for ${{matrix.TARGET}}
+        run: ${{matrix.CMD_BUILD}}
+      - name: Upload Release Asset
+        if: startsWith(github.ref, 'refs/tags/')
+        id: upload-release-asset
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          files: |
+            ./dist/${{needs.compute.outputs.OUT_NAME_FILE}}_${{matrix.OS_ARCH}}${{needs.compute.outputs.ASSET_EXTENSION}}

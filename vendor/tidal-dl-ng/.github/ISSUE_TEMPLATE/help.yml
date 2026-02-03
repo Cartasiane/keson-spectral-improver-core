@@ -1,0 +1,48 @@
+name: Help
+description: File a question for help.
+labels: ["help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If no other issue template fits please use this.
+  - type: checkboxes
+    id: search-done
+    attributes:
+      label: You must use the search before you create an issue!
+      description: "**Search [here](https://github.com/exislow/tidal-dl-ng/issues?q=is%3Aissue+is%3Aopen%2Cclosed).** Otherwise this issue gets closed without any comment. Please keep in mind that everyone's time is very precious."
+      options:
+        - label: I did use the search, I promise!
+  - type: textarea
+    id: help
+    attributes:
+      label: I need Help.
+      description: Describe the current situation and state your question.
+      placeholder: Write at least three sentences and be as precise as possible. **Provide all necessary information** to be able to **reproduce** your case / what you try to describe. Otherwise this issue will be closed!
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: What operating system do you use?
+      multiple: false
+      options:
+        - macOS
+        - Linux
+        - Windows
+  - type: input
+    id: version-os
+    attributes:
+      label: Version OS
+      description: What is the version of your operating system?
+      placeholder: Ubuntu 24.04.1 LTS / macOS 15.2 / Windows 10 22H2
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Your settings
+      description: Please copy and paste your settings from `~/.config/tidal_dl_ng/settings.json` (macOS & Linux) / `%HOMEPATH%\.config\tidal_dl_ng\settings.json` (Windows). This will be automatically formatted into code, so no need for backticks.
+      render: json
+    validations:
+      required: true

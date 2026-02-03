@@ -226,8 +226,13 @@ async function handleTrackSearch(req, res) {
   const query = req.body?.query || req.query?.query
   const providedMetadata = req.body?.metadata
 
+  // 'auto', 'tidal', 'soundcloud'
+  // Default to 'auto' if not provided or invalid
+  const source = (req.body?.source || req.query?.source || 'auto').toLowerCase()
+
   const TIDAL_THRESHOLD = config.TIDAL_MATCH_THRESHOLD
   const SOUNDCLOUD_THRESHOLD = config.SOUNDCLOUD_MATCH_THRESHOLD
+
 
   if (!query && !providedMetadata) {
     return res.status(400).json({ error: 'Missing query or metadata' })
@@ -253,60 +258,70 @@ async function handleTrackSearch(req, res) {
       return res.status(400).json({ error: 'No usable metadata or query provided' })
     }
 
-    console.log(`[search/track] Metadata: artist="${metadata.artist}", title="${metadata.title}", duration=${metadata.duration}`)
+    console.log(`[search/track] Metadata: artist="${metadata.artist}", title="${metadata.title}", duration=${metadata.duration}, source=${source}`)
 
-    // Step 2: Try Tidal first
-    const tidalCandidates = await searchTracks(metadata)
-    if (tidalCandidates.length > 0) {
-      const scored = tidalCandidates.map(c => ({
-        ...c,
-        score: scoreMatch(metadata, c),
-        source: 'tidal'
-      }))
-      scored.sort((a, b) => b.score - a.score)
+    // Step 2: Try Tidal first (unless source is explicitly soundcloud)
+    if (source !== 'soundcloud') {
+      const tidalCandidates = await searchTracks(metadata)
+      if (tidalCandidates.length > 0) {
+        const scored = tidalCandidates.map(c => ({
+          ...c,
+          score: scoreMatch(metadata, c),
+          source: 'tidal'
+        }))
+        scored.sort((a, b) => b.score - a.score)
 
-      if (scored[0].score >= TIDAL_THRESHOLD) {
-        console.log(`[search/track] Tidal match: "${scored[0].title}" (score: ${scored[0].score})`)
-        return res.json({
-          success: true,
-          found: true,
-          source: 'tidal',
-          url: scored[0].url,
-          score: scored[0].score,
-          title: scored[0].title,
-          artist: scored[0].artist,
-          cover_url: scored[0].cover_url
-        })
+        if (scored[0].score >= TIDAL_THRESHOLD) {
+          console.log(`[search/track] Tidal match: "${scored[0].title}" (score: ${scored[0].score})`)
+          return res.json({
+            success: true,
+            found: true,
+            source: 'tidal',
+            url: scored[0].url,
+            score: scored[0].score,
+            title: scored[0].title,
+            artist: scored[0].artist,
+            cover_url: scored[0].cover_url
+          })
+        }
+        console.log(`[search/track] Tidal match: "${scored[0].title}" — Cover: ${scored[0].cover_url}`)
+        console.log(`[search/track] Tidal best: ${scored[0].score} < ${TIDAL_THRESHOLD}, trying SoundCloud...`)
+      } else {
+        console.log(`[search/track] No Tidal results, trying SoundCloud...`)
       }
-      console.log(`[search/track] Tidal match: "${scored[0].title}" — Cover: ${scored[0].cover_url}`)
-      console.log(`[search/track] Tidal best: ${scored[0].score} < ${TIDAL_THRESHOLD}, trying SoundCloud...`)
     } else {
-      console.log(`[search/track] No Tidal results, trying SoundCloud...`)
+      console.log(`[search/track] Skipping Tidal (source=${source})`)
     }
 
-    // Step 3: Fallback to SoundCloud
-    const scCandidates = await searchSoundCloud(metadata)
-    if (scCandidates.length > 0) {
-      const scored = scCandidates.map(c => ({
-        ...c,
-        score: scoreMatch(metadata, c),
-        source: 'soundcloud'
-      }))
-      scored.sort((a, b) => b.score - a.score)
 
-      if (scored[0].score >= SOUNDCLOUD_THRESHOLD) {
-        console.log(`[search/track] SoundCloud match: "${scored[0].title}" (score: ${scored[0].score})`)
-        return res.json({
-          success: true,
-          found: true,
-          source: 'soundcloud',
-          url: scored[0].url,
-          title: scored[0].title,
-          artist: scored[0].artist,
-          cover_url: scored[0].cover_url
-        })
+    // Step 3: Fallback to SoundCloud (unless source is explicitly tidal)
+    if (source !== 'tidal') {
+      const scCandidates = await searchSoundCloud(metadata)
+      if (scCandidates.length > 0) {
+        const scored = scCandidates.map(c => ({
+          ...c,
+          score: scoreMatch(metadata, c),
+          source: 'soundcloud'
+        }))
+        scored.sort((a, b) => b.score - a.score)
+
+        if (scored[0].score >= SOUNDCLOUD_THRESHOLD) {
+          console.log(`[search/track] SoundCloud match: "${scored[0].title}" (score: ${scored[0].score})`)
+          return res.json({
+            success: true,
+            found: true,
+            source: 'soundcloud',
+            url: scored[0].url,
+            title: scored[0].title,
+            artist: scored[0].artist,
+            cover_url: scored[0].cover_url
+          })
+        }
       }
+    } else {
+      console.log(`[search/track] Skipping SoundCloud (source=${source})`)
     }
+
 
     // Step 4: Both sources failed
     console.log(`[search/track] No confident match found on Tidal or SoundCloud`)
